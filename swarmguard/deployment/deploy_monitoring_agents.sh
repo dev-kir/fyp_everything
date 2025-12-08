@@ -45,6 +45,23 @@ ssh master "docker service create \
   -e RECOVERY_MANAGER_URL='${RECOVERY_MANAGER_URL}' \
   ${IMAGE}"
 
+# Worker-2
+echo "Deploying agent on worker-2..."
+ssh master "docker service create \
+  --name monitoring-agent-worker2 \
+  --constraint 'node.hostname == worker-2' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --mount type=bind,src=/sys,dst=/host/sys,ro=true \
+  --network swarmguard-net \
+  -e NODE_NAME=worker-2 \
+  -e NET_IFACE=enp0s25 \
+  -e POLL_INTERVAL=5 \
+  -e INFLUXDB_URL='${INFLUXDB_URL}' \
+  -e INFLUXDB_TOKEN='${INFLUXDB_TOKEN}' \
+  -e RECOVERY_MANAGER_URL='${RECOVERY_MANAGER_URL}' \
+  ${IMAGE}"
+
 # Worker-3
 echo "Deploying agent on worker-3..."
 ssh master "docker service create \
