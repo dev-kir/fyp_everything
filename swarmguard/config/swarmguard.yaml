@@ -1,0 +1,83 @@
+# SwarmGuard Configuration File
+# All thresholds and settings for proactive recovery
+
+# InfluxDB Configuration
+influxdb:
+  url: "http://192.168.2.61:8086"
+  org: "swarmguard"
+  bucket: "metrics"
+  token: "iNCff-dYnCY8oiO_mDIn3tMIEdl5D1Z4_KFE2vwTMFtQoTqGh2SbL5msNB30DIOKE2wwj-maBW5lTZVJ3f9ONA=="
+  batch_size: 20
+  flush_interval: 10
+
+# Recovery Manager Configuration
+recovery_manager:
+  host: "0.0.0.0"
+  port: 5000
+
+# Monitoring Configuration
+monitoring:
+  poll_interval: 5
+  metric_window: 15
+  alert_immediately: true
+  max_history_minutes: 5
+
+# Scenario 1: Container/Node Problem (Migration)
+scenarios:
+  scenario1_migration:
+    enabled: true
+    cpu_threshold: 75
+    memory_threshold: 80
+    network_threshold_max: 35
+    cooldown_period: 30
+    consecutive_breaches: 2
+    migration:
+      wait_for_health: true
+      health_timeout: 10
+
+  scenario2_scaling:
+    enabled: true
+    cpu_threshold: 75
+    memory_threshold: 80
+    network_threshold_min: 65
+    scale_up_cooldown: 60
+    scale_down_cooldown: 180
+    consecutive_breaches: 2
+    scaling:
+      min_replicas: 1
+      max_replicas: 10
+
+# Performance Targets
+performance:
+  max_decision_time_ms: 1000
+  target_mttr_seconds: 10
+  max_downtime_seconds: 3
+
+# Docker Configuration
+docker:
+  socket_path: "/var/run/docker.sock"
+  swarm_network: "swarmguard-net"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "json"
+
+# Node Configuration
+nodes:
+  master:
+    hostname: "master"
+    ip: "192.168.2.50"
+    interface: "enp5s0f0"
+  worker-1:
+    hostname: "worker-1"
+    ip: "192.168.2.51"
+    interface: "eno1"
+  worker-3:
+    hostname: "worker-3"
+    ip: "192.168.2.53"
+    interface: "enp2s0"
+  worker-4:
+    hostname: "worker-4"
+    ip: "192.168.2.54"
+    interface: "eno1"

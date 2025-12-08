@@ -1,0 +1,35 @@
+# Default configuration for recovery manager
+
+influxdb:
+  url: "http://192.168.2.61:8086"
+  org: "swarmguard"
+  bucket: "metrics"
+  token: "iNCff-dYnCY8oiO_mDIn3tMIEdl5D1Z4_KFE2vwTMFtQoTqGh2SbL5msNB30DIOKE2wwj-maBW5lTZVJ3f9ONA=="
+
+scenarios:
+  scenario1_migration:
+    enabled: true
+    cpu_threshold: 75
+    memory_threshold: 80
+    network_threshold_max: 35
+    cooldown_period: 30
+    consecutive_breaches: 2
+    migration:
+      wait_for_health: true
+      health_timeout: 10
+
+  scenario2_scaling:
+    enabled: true
+    cpu_threshold: 75
+    memory_threshold: 80
+    network_threshold_min: 65
+    scale_up_cooldown: 60
+    scale_down_cooldown: 180
+    consecutive_breaches: 2
+    scaling:
+      min_replicas: 1
+      max_replicas: 10
+
+docker:
+  socket_path: "unix:///var/run/docker.sock"
+  swarm_network: "swarmguard-net"
