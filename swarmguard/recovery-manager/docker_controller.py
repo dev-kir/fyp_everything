@@ -44,24 +44,37 @@ class DockerController:
             new_node = None
 
             while (time.time() - wait_start) < timeout:
-                service.reload()  # Reload service to get updated tasks
-                tasks = service.tasks(filters={'desired-state': 'running'})
-                for task in tasks:
-                    node_id = task.get('NodeID')
-                    task_node = self.client.nodes.get(node_id)
-                    task_hostname = task_node.attrs['Description']['Hostname']
+                try:
+                    time.sleep(1)  # Give Docker time to create new task
+                    service.reload()  # Reload service to get updated tasks
+                    tasks = service.tasks(filters={'desired-state': 'running'})
 
-                    if task_hostname != from_node:
+                    # Count running tasks by node
+                    running_nodes = []
+                    for task in tasks:
+                        node_id = task.get('NodeID')
+                        if not node_id:
+                            continue
                         task_state = task.get('Status', {}).get('State')
                         if task_state == 'running':
-                            new_task_healthy = True
-                            new_node = task_hostname
-                            logger.info(f"Step 2: New container healthy on {new_node}")
-                            break
+                            task_node = self.client.nodes.get(node_id)
+                            task_hostname = task_node.attrs['Description']['Hostname']
+                            running_nodes.append(task_hostname)
 
-                if new_task_healthy:
-                    break
-                time.sleep(0.5)
+                    # Check if we have a new replica running on a different node
+                    if len(running_nodes) >= new_replicas:
+                        for node_hostname in running_nodes:
+                            if node_hostname != from_node:
+                                new_task_healthy = True
+                                new_node = node_hostname
+                                logger.info(f"Step 2: New container healthy on {new_node}")
+                                break
+
+                    if new_task_healthy:
+                        break
+                except Exception as e:
+                    logger.debug(f"Error checking tasks: {e}")
+                    time.sleep(0.5)
 
             if not new_task_healthy:
                 logger.warning(f"New container not healthy after {timeout}s, rolling back")
