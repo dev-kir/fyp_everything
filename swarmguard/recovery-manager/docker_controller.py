@@ -33,10 +33,22 @@ class DockerController:
             new_replicas = current_replicas + 1
             logger.info(f"Step 1: Scaling up {service_name} to {new_replicas} replicas with constraints")
 
-            # Update spec with new replica count and constraints
-            spec['Mode']['Replicated']['Replicas'] = new_replicas
+            # Update with only the fields we need to change
+            version = service.version
+            service.update(
+                version=version,
+                mode={'Replicated': {'Replicas': new_replicas}},
+                task_template=spec['TaskTemplate']
+            )
+
+            # Add constraints after initial scale
             spec['TaskTemplate']['Placement'] = {'Constraints': constraints}
-            service.update(**spec)
+            service.reload()
+            service.update(
+                version=service.version,
+                mode={'Replicated': {'Replicas': new_replicas}},
+                task_template=spec['TaskTemplate']
+            )
 
             # Step 2: Wait for new container to be healthy
             timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
@@ -65,14 +77,22 @@ class DockerController:
 
             if not new_task_healthy:
                 logger.warning(f"New container not healthy after {timeout}s, rolling back")
-                spec['Mode']['Replicated']['Replicas'] = current_replicas
-                service.update(**spec)
+                service.reload()
+                service.update(
+                    version=service.version,
+                    mode={'Replicated': {'Replicas': current_replicas}},
+                    task_template=spec['TaskTemplate']
+                )
                 return {'success': False, 'error': 'New container failed to become healthy'}
 
             # Step 3: Remove old container by scaling back to original count
             logger.info(f"Step 3: Scaling down to {current_replicas} replicas (removing old container)")
-            spec['Mode']['Replicated']['Replicas'] = current_replicas
-            service.update(**spec)
+            service.reload()
+            service.update(
+                version=service.version,
+                mode={'Replicated': {'Replicas': current_replicas}},
+                task_template=spec['TaskTemplate']
+            )
 
             total_time = time.time() - start_time
             logger.info(f"Zero-downtime migration complete: {service_name} on {new_node} ({total_time:.2f}s)")
