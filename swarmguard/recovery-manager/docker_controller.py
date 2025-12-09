@@ -4,6 +4,7 @@
 import logging
 import time
 import docker
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -47,34 +48,43 @@ class DockerController:
                 'node.role == worker'
             ])
 
-            # Update service with new constraints FIRST, then scale
-            spec['TaskTemplate']['Placement'] = {'Constraints': new_constraints}
-            spec['Mode']['Replicated']['Replicas'] = new_replicas
-
-            # Apply constraints then scale - we'll keep the constraint permanently
-            # so future scale operations respect it
+            # Use Docker CLI to apply constraints (Docker SDK has issues)
+            # Apply constraints first, then scale
+            logger.info(f"Applying constraints via Docker CLI: {new_constraints}")
             try:
-                # First update constraints without changing replicas
-                from docker.types import TaskTemplate as DockerTaskTemplate, ContainerSpec, Placement as DockerPlacement
+                # Add constraints one by one
+                for constraint in new_constraints:
+                    # Check if constraint already exists to avoid duplicates
+                    existing = False
+                    for existing_constraint in current_constraints:
+                        if constraint in existing_constraint:
+                            existing = True
+                            break
 
-                container_spec = ContainerSpec.from_dict(spec['TaskTemplate']['ContainerSpec'])
-                placement = DockerPlacement(constraints=new_constraints)
-                task_template = DockerTaskTemplate(container_spec=container_spec, placement=placement)
+                    if not existing:
+                        cmd = f'docker service update --constraint-add "{constraint}" {service_name}'
+                        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                        if result.returncode != 0:
+                            logger.error(f"Failed to add constraint '{constraint}': {result.stderr}")
+                        else:
+                            logger.info(f"Added constraint: {constraint}")
+                        time.sleep(0.5)
 
-                # Update constraints first
-                service.update(task_template=task_template)
-                logger.info(f"Updated constraints: {new_constraints}")
-                time.sleep(1)
+                # Now scale with constraints in place
+                cmd = f'docker service scale {service_name}={new_replicas}'
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
+                if result.returncode != 0:
+                    logger.error(f"Failed to scale: {result.stderr}")
+                    return {'success': False, 'error': f'Scale failed: {result.stderr}'}
 
-                # Then scale
-                service.reload()
-                service.scale(new_replicas)
-                logger.info(f"Scaled to {new_replicas} replicas with constraints")
+                logger.info(f"Scaled to {new_replicas} replicas with constraints applied")
+                time.sleep(2)  # Give Docker time to start new task
+            except subprocess.TimeoutExpired:
+                logger.error("Docker CLI command timed out")
+                return {'success': False, 'error': 'Docker command timeout'}
             except Exception as e:
-                logger.error(f"Failed to update constraints: {e}")
-                # Fallback to just scaling
-                service.scale(new_replicas)
-                logger.warning(f"Fallback: scaled without constraint update")
+                logger.error(f"Failed to apply constraints via CLI: {e}")
+                return {'success': False, 'error': str(e)}
 
             # Step 2: Wait for new container to be healthy
             timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
@@ -121,28 +131,35 @@ class DockerController:
                 service.scale(current_replicas)
                 return {'success': False, 'error': 'New container failed to become healthy'}
 
-            # Step 3: Remove OLD container from problem node (not the new one!)
-            logger.info(f"Step 3: Removing old container from {from_node}")
+            # Step 3: Scale down while KEEPING the constraint to exclude problem node
+            logger.info(f"Step 3: Scaling down to {current_replicas} while keeping {from_node} excluded")
             time.sleep(2)  # Give new container a moment to stabilize
 
-            # Find and stop the OLD task on the problem node
+            # Scale down with constraints still in place
+            # This ensures Docker removes the old task from worker-3, not the new one on worker-4
+            service.reload()
+            service.scale(current_replicas)
+            logger.info(f"Scaled down to {current_replicas} replicas")
+
+            # Wait a moment for scale-down to complete
+            time.sleep(2)
+
+            # Verify the container is on the new node
             service.reload()
             tasks = service.tasks(filters={'desired-state': 'running'})
-            old_task_id = None
-
+            final_node = None
             for task in tasks:
                 node_id = task.get('NodeID')
                 if node_id:
                     task_node = self.client.nodes.get(node_id)
-                    task_hostname = task_node.attrs['Description']['Hostname']
-                    if task_hostname == from_node:
-                        old_task_id = task.get('ID')
-                        logger.info(f"Found old task {old_task_id[:12]} on {from_node}, will remove it")
-                        break
+                    final_node = task_node.attrs['Description']['Hostname']
+                    break
 
-            # Scale down to remove the old task
-            service.scale(current_replicas)
-            logger.info(f"Scaled down to {current_replicas} replicas")
+            if final_node == from_node:
+                logger.error(f"Migration failed! Container returned to {from_node}")
+                return {'success': False, 'error': f'Container returned to problem node {from_node}'}
+
+            logger.info(f"Verified: Container is on {final_node} (not {from_node})")
 
             total_time = time.time() - start_time
             logger.info(f"Zero-downtime migration complete: {service_name} on {new_node} ({total_time:.2f}s)")
