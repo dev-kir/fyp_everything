@@ -46,16 +46,26 @@ class CPUStressor:
             # Use multiprocessing for TRUE parallel CPU usage (bypasses Python GIL)
             num_cores = multiprocessing.cpu_count()
             # Calculate number of processes needed
-            num_processes = max(1, int((target_percent / 100.0) * num_cores))
+            target_processes = max(1, int((target_percent / 100.0) * num_cores))
 
-            logger.info(f"Starting {num_processes} CPU processes (cores={num_cores}) for {target_percent}% target")
+            logger.info(f"Ramping CPU load to {target_percent}% ({target_processes} processes) over {ramp_seconds}s")
 
-            # Start CPU-burning processes
-            for i in range(num_processes):
-                p = multiprocessing.Process(target=cpu_burn_process, args=(duration_seconds + ramp_seconds,))
-                p.start()
-                self.processes.append(p)
-                logger.info(f"Started CPU process {i+1}/{num_processes}")
+            # Ramp up gradually by starting processes one by one
+            if ramp_seconds > 0:
+                delay_per_process = ramp_seconds / target_processes
+                for i in range(target_processes):
+                    p = multiprocessing.Process(target=cpu_burn_process, args=(duration_seconds + ramp_seconds,))
+                    p.start()
+                    self.processes.append(p)
+                    logger.info(f"Started CPU process {i+1}/{target_processes} (ramp step {i+1})")
+                    if i < target_processes - 1:  # Don't sleep after last process
+                        time.sleep(delay_per_process)
+            else:
+                # No ramp, start all at once
+                for i in range(target_processes):
+                    p = multiprocessing.Process(target=cpu_burn_process, args=(duration_seconds,))
+                    p.start()
+                    self.processes.append(p)
 
             logger.info(f"CPU stress maintaining {target_percent}% for {duration_seconds}s")
             time.sleep(duration_seconds)

@@ -53,9 +53,11 @@ class DockerController:
 
             # Apply the update (this will scale and apply constraints)
             try:
+                # Get version as integer
+                version_index = service.attrs['Version']['Index']
                 # Use force update to apply changes
                 service.update(
-                    version=service.version['Index'],
+                    version=version_index,
                     task_template=spec['TaskTemplate'],
                     mode=spec['Mode']
                 )
