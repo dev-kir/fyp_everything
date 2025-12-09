@@ -46,7 +46,7 @@ class MetricsCollector:
             cpu_percent = psutil.cpu_percent(interval=0.1)
             mem = psutil.virtual_memory()
 
-            # Read network stats from /proc/net/dev (host network mode)
+            # Read network stats from /sys/class/net (host's mounted /sys)
             net_stats = self.read_host_network_stats()
 
             if self.net_iface in net_stats:
@@ -62,7 +62,7 @@ class MetricsCollector:
                 self.prev_net_stats[self.net_iface] = (current_bytes_recv, current_bytes_sent)
             else:
                 rx_mbps = tx_mbps = 0
-                logger.warning(f"Network interface {self.net_iface} not found in /proc/net/dev")
+                logger.warning(f"Network interface {self.net_iface} not found in /sys/class/net")
 
             return {"cpu_percent": cpu_percent, "memory_percent": mem.percent, "network_rx_mbps": rx_mbps, "network_tx_mbps": tx_mbps}
         except Exception as e:
@@ -70,20 +70,25 @@ class MetricsCollector:
             return {"cpu_percent": 0, "memory_percent": 0, "network_rx_mbps": 0, "network_tx_mbps": 0}
 
     def read_host_network_stats(self) -> Dict:
-        """Read network stats from /proc/net/dev (host network mode)"""
+        """Read network stats from /sys/class/net (works with Docker network namespaces)"""
         stats = {}
         try:
-            with open('/proc/net/dev', 'r') as f:
-                lines = f.readlines()
-                for line in lines[2:]:  # Skip first 2 header lines
-                    parts = line.split()
-                    if len(parts) >= 10:
-                        iface = parts[0].rstrip(':')
-                        bytes_recv = int(parts[1])
-                        bytes_sent = int(parts[9])
+            # /sys is mounted as /host/sys in the container
+            net_dir = '/host/sys/class/net'
+            for iface in os.listdir(net_dir):
+                rx_path = f'{net_dir}/{iface}/statistics/rx_bytes'
+                tx_path = f'{net_dir}/{iface}/statistics/tx_bytes'
+                if os.path.exists(rx_path) and os.path.exists(tx_path):
+                    try:
+                        with open(rx_path) as f:
+                            bytes_recv = int(f.read().strip())
+                        with open(tx_path) as f:
+                            bytes_sent = int(f.read().strip())
                         stats[iface] = (bytes_recv, bytes_sent)
+                    except (ValueError, IOError) as e:
+                        logger.debug(f"Could not read stats for {iface}: {e}")
         except Exception as e:
-            logger.error(f"Error reading /proc/net/dev: {e}")
+            logger.error(f"Error reading /sys/class/net: {e}")
         return stats
 
     def get_container_metrics(self, container, time_delta: float) -> Dict:
