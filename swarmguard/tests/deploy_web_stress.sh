@@ -13,6 +13,7 @@ ssh master "docker service create \
   --name web-stress \
   --replicas ${REPLICAS} \
   --constraint 'node.role==worker' \
+  --constraint 'node.hostname!=master' \
   --network swarmguard-net \
   --publish 8080:8080 \
   --health-cmd 'curl -f http://localhost:8080/health || exit 1' \

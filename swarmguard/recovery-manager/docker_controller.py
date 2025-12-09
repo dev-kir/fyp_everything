@@ -21,8 +21,14 @@ class DockerController:
             service = self.client.services.get(service_name)
             logger.info(f"Migrating {service_name} away from {from_node}")
 
-            service.update(force_update=True, constraints=[f'node.hostname != {from_node}'])
-            logger.info(f"Migration initiated for {service_name}")
+            # Exclude both the problematic node AND the master node from migration targets
+            constraints = [
+                f'node.hostname != {from_node}',
+                'node.hostname != master',
+                'node.role == worker'
+            ]
+            service.update(force_update=True, constraints=constraints)
+            logger.info(f"Migration initiated for {service_name} with constraints: {constraints}")
 
             timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
             wait_start = time.time()
