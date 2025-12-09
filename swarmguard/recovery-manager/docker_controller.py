@@ -44,6 +44,7 @@ class DockerController:
             new_node = None
 
             while (time.time() - wait_start) < timeout:
+                service.reload()  # Reload service to get updated tasks
                 tasks = service.tasks(filters={'desired-state': 'running'})
                 for task in tasks:
                     node_id = task.get('NodeID')
