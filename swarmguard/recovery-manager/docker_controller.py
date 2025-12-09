@@ -19,19 +19,26 @@ class DockerController:
         start_time = time.time()
         try:
             service = self.client.services.get(service_name)
-            logger.info(f"Migrating {service_name} away from {from_node}")
+            spec = service.attrs['Spec']
+            current_replicas = spec.get('Mode', {}).get('Replicated', {}).get('Replicas', 1)
 
-            # Exclude both the problematic node AND the master node from migration targets
+            logger.info(f"Zero-downtime migration: {service_name} from {from_node}")
+
+            # Step 1: Scale up by 1 with constraints (deploy new container on different worker)
             constraints = [
                 f'node.hostname != {from_node}',
                 'node.hostname != master',
                 'node.role == worker'
             ]
-            service.update(force_update=True, constraints=constraints)
-            logger.info(f"Migration initiated for {service_name} with constraints: {constraints}")
+            new_replicas = current_replicas + 1
+            logger.info(f"Step 1: Scaling up {service_name} to {new_replicas} replicas with constraints")
+            service.update(mode={'Replicated': {'Replicas': new_replicas}}, constraints=constraints)
 
+            # Step 2: Wait for new container to be healthy
             timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
             wait_start = time.time()
+            new_task_healthy = False
+            new_node = None
 
             while (time.time() - wait_start) < timeout:
                 tasks = service.tasks(filters={'desired-state': 'running'})
@@ -43,13 +50,27 @@ class DockerController:
                     if task_hostname != from_node:
                         task_state = task.get('Status', {}).get('State')
                         if task_state == 'running':
-                            total_time = time.time() - start_time
-                            logger.info(f"Migration successful: {service_name} now on {task_hostname} ({total_time:.2f}s)")
-                            return {'success': True, 'new_node': task_hostname, 'duration_seconds': total_time}
+                            new_task_healthy = True
+                            new_node = task_hostname
+                            logger.info(f"Step 2: New container healthy on {new_node}")
+                            break
+
+                if new_task_healthy:
+                    break
                 time.sleep(0.5)
 
-            logger.warning(f"Migration timeout for {service_name}")
-            return {'success': False, 'error': 'Timeout waiting for new container'}
+            if not new_task_healthy:
+                logger.warning(f"New container not healthy after {timeout}s, rolling back")
+                service.update(mode={'Replicated': {'Replicas': current_replicas}})
+                return {'success': False, 'error': 'New container failed to become healthy'}
+
+            # Step 3: Remove old container by scaling back to original count
+            logger.info(f"Step 3: Scaling down to {current_replicas} replicas (removing old container)")
+            service.update(mode={'Replicated': {'Replicas': current_replicas}}, constraints=constraints)
+
+            total_time = time.time() - start_time
+            logger.info(f"Zero-downtime migration complete: {service_name} on {new_node} ({total_time:.2f}s)")
+            return {'success': True, 'new_node': new_node, 'duration_seconds': total_time}
 
         except docker.errors.NotFound:
             logger.error(f"Service {service_name} not found")

@@ -121,7 +121,9 @@ class MetricsCollector:
             cpu_count = cpu_stats.get('online_cpus', len(cpu_stats['cpu_usage'].get('percpu_usage', [1])))
 
             if system_delta > 0 and cpu_delta > 0:
-                return min((cpu_delta / system_delta) * cpu_count * 100.0, 100.0 * cpu_count)
+                # Normalize to 0-100% by dividing by cpu_count
+                cpu_percent = (cpu_delta / system_delta) * cpu_count * 100.0
+                return min(cpu_percent / cpu_count, 100.0)
             return 0.0
         except:
             return 0.0
