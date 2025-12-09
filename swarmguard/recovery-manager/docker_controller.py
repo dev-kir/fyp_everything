@@ -51,24 +51,27 @@ class DockerController:
             spec['TaskTemplate']['Placement'] = {'Constraints': new_constraints}
             spec['Mode']['Replicated']['Replicas'] = new_replicas
 
-            # Apply the update (this will scale and apply constraints)
+            # Apply constraints then scale - we'll keep the constraint permanently
+            # so future scale operations respect it
             try:
-                # Build the update arguments properly for Docker SDK
-                from docker.types import ServiceMode, TaskTemplate, Placement
+                # First update constraints without changing replicas
+                from docker.types import TaskTemplate as DockerTaskTemplate, ContainerSpec, Placement as DockerPlacement
 
-                placement = Placement(constraints=new_constraints)
-                task_template = TaskTemplate(
-                    container_spec=spec['TaskTemplate']['ContainerSpec'],
-                    placement=placement
-                )
+                container_spec = ContainerSpec.from_dict(spec['TaskTemplate']['ContainerSpec'])
+                placement = DockerPlacement(constraints=new_constraints)
+                task_template = DockerTaskTemplate(container_spec=container_spec, placement=placement)
 
-                service.update(
-                    task_template=task_template,
-                    mode=ServiceMode('replicated', replicas=new_replicas)
-                )
-                logger.info(f"Service updated with constraints and scaled to {new_replicas} replicas")
+                # Update constraints first
+                service.update(task_template=task_template)
+                logger.info(f"Updated constraints: {new_constraints}")
+                time.sleep(1)
+
+                # Then scale
+                service.reload()
+                service.scale(new_replicas)
+                logger.info(f"Scaled to {new_replicas} replicas with constraints")
             except Exception as e:
-                logger.error(f"Failed to update service: {e}")
+                logger.error(f"Failed to update constraints: {e}")
                 # Fallback to just scaling
                 service.scale(new_replicas)
                 logger.warning(f"Fallback: scaled without constraint update")
@@ -118,11 +121,28 @@ class DockerController:
                 service.scale(current_replicas)
                 return {'success': False, 'error': 'New container failed to become healthy'}
 
-            # Step 3: Remove old container by scaling back to original count
-            logger.info(f"Step 3: Scaling down to {current_replicas} replicas (removing old container)")
+            # Step 3: Remove OLD container from problem node (not the new one!)
+            logger.info(f"Step 3: Removing old container from {from_node}")
             time.sleep(2)  # Give new container a moment to stabilize
+
+            # Find and stop the OLD task on the problem node
             service.reload()
+            tasks = service.tasks(filters={'desired-state': 'running'})
+            old_task_id = None
+
+            for task in tasks:
+                node_id = task.get('NodeID')
+                if node_id:
+                    task_node = self.client.nodes.get(node_id)
+                    task_hostname = task_node.attrs['Description']['Hostname']
+                    if task_hostname == from_node:
+                        old_task_id = task.get('ID')
+                        logger.info(f"Found old task {old_task_id[:12]} on {from_node}, will remove it")
+                        break
+
+            # Scale down to remove the old task
             service.scale(current_replicas)
+            logger.info(f"Scaled down to {current_replicas} replicas")
 
             total_time = time.time() - start_time
             logger.info(f"Zero-downtime migration complete: {service_name} on {new_node} ({total_time:.2f}s)")
