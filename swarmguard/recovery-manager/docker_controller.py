@@ -24,18 +24,47 @@ class DockerController:
 
             logger.info(f"Zero-downtime migration: {service_name} from {from_node}")
 
-            # Step 1: Scale up by 1 with constraints (deploy new container on different worker)
-            constraints = [
+            # Step 1: Add constraint to EXCLUDE problem node, then scale up
+            new_replicas = current_replicas + 1
+            logger.info(f"Step 1: Adding constraint to exclude {from_node}, then scaling to {new_replicas} replicas")
+
+            # Get current constraints from service
+            current_constraints = []
+            if 'Placement' in spec['TaskTemplate'] and 'Constraints' in spec['TaskTemplate']['Placement']:
+                current_constraints = spec['TaskTemplate']['Placement']['Constraints']
+
+            # Build new constraint list with problem node exclusion
+            new_constraints = []
+            for c in current_constraints:
+                # Skip if constraint already excludes this specific node
+                if f'node.hostname != {from_node}' not in c and f'node.hostname!={from_node}' not in c:
+                    new_constraints.append(c)
+
+            # Add our constraints
+            new_constraints.extend([
                 f'node.hostname != {from_node}',
                 'node.hostname != master',
                 'node.role == worker'
-            ]
-            new_replicas = current_replicas + 1
-            logger.info(f"Step 1: Scaling up {service_name} to {new_replicas} replicas")
+            ])
 
-            # Just scale up first - constraints will be applied to new task automatically
-            service.scale(new_replicas)
-            logger.info(f"Scaled to {new_replicas} replicas, waiting for new task...")
+            # Update service with new constraints FIRST, then scale
+            spec['TaskTemplate']['Placement'] = {'Constraints': new_constraints}
+            spec['Mode']['Replicated']['Replicas'] = new_replicas
+
+            # Apply the update (this will scale and apply constraints)
+            try:
+                # Use force update to apply changes
+                service.update(
+                    version=service.version['Index'],
+                    task_template=spec['TaskTemplate'],
+                    mode=spec['Mode']
+                )
+                logger.info(f"Service updated with constraints and scaled to {new_replicas} replicas")
+            except Exception as e:
+                logger.error(f"Failed to update service: {e}")
+                # Fallback to just scaling
+                service.scale(new_replicas)
+                logger.warning(f"Fallback: scaled without constraint update")
 
             # Step 2: Wait for new container to be healthy
             timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
