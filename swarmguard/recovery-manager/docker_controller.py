@@ -53,13 +53,18 @@ class DockerController:
 
             # Apply the update (this will scale and apply constraints)
             try:
-                # Get version as integer
-                version_index = service.attrs['Version']['Index']
-                # Use force update to apply changes
+                # Build the update arguments properly for Docker SDK
+                from docker.types import ServiceMode, TaskTemplate, Placement
+
+                placement = Placement(constraints=new_constraints)
+                task_template = TaskTemplate(
+                    container_spec=spec['TaskTemplate']['ContainerSpec'],
+                    placement=placement
+                )
+
                 service.update(
-                    version=version_index,
-                    task_template=spec['TaskTemplate'],
-                    mode=spec['Mode']
+                    task_template=task_template,
+                    mode=ServiceMode('replicated', replicas=new_replicas)
                 )
                 logger.info(f"Service updated with constraints and scaled to {new_replicas} replicas")
             except Exception as e:
