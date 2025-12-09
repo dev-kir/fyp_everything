@@ -45,26 +45,46 @@ class MetricsCollector:
         try:
             cpu_percent = psutil.cpu_percent(interval=0.1)
             mem = psutil.virtual_memory()
-            net_io = psutil.net_io_counters(pernic=True)
 
-            if self.net_iface in net_io:
-                current_stats = net_io[self.net_iface]
+            # Read network stats from host's /proc/net/dev (mounted at /host/proc/net/dev)
+            net_stats = self.read_host_network_stats()
+
+            if self.net_iface in net_stats:
+                current_bytes_recv, current_bytes_sent = net_stats[self.net_iface]
                 if self.net_iface in self.prev_net_stats:
-                    prev_stats = self.prev_net_stats[self.net_iface]
-                    bytes_recv = current_stats.bytes_recv - prev_stats.bytes_recv
-                    bytes_sent = current_stats.bytes_sent - prev_stats.bytes_sent
-                    rx_mbps = (bytes_recv / time_delta) * 8 / 1_000_000 if time_delta > 0 else 0
-                    tx_mbps = (bytes_sent / time_delta) * 8 / 1_000_000 if time_delta > 0 else 0
+                    prev_bytes_recv, prev_bytes_sent = self.prev_net_stats[self.net_iface]
+                    bytes_recv_delta = current_bytes_recv - prev_bytes_recv
+                    bytes_sent_delta = current_bytes_sent - prev_bytes_sent
+                    rx_mbps = (bytes_recv_delta / time_delta) * 8 / 1_000_000 if time_delta > 0 else 0
+                    tx_mbps = (bytes_sent_delta / time_delta) * 8 / 1_000_000 if time_delta > 0 else 0
                 else:
                     rx_mbps = tx_mbps = 0
-                self.prev_net_stats[self.net_iface] = current_stats
+                self.prev_net_stats[self.net_iface] = (current_bytes_recv, current_bytes_sent)
             else:
                 rx_mbps = tx_mbps = 0
+                logger.warning(f"Network interface {self.net_iface} not found in /host/proc/net/dev")
 
             return {"cpu_percent": cpu_percent, "memory_percent": mem.percent, "network_rx_mbps": rx_mbps, "network_tx_mbps": tx_mbps}
         except Exception as e:
             logger.error(f"Error collecting node metrics: {e}")
             return {"cpu_percent": 0, "memory_percent": 0, "network_rx_mbps": 0, "network_tx_mbps": 0}
+
+    def read_host_network_stats(self) -> Dict:
+        """Read network stats from host's /proc/net/dev"""
+        stats = {}
+        try:
+            with open('/host/proc/net/dev', 'r') as f:
+                lines = f.readlines()
+                for line in lines[2:]:  # Skip first 2 header lines
+                    parts = line.split()
+                    if len(parts) >= 10:
+                        iface = parts[0].rstrip(':')
+                        bytes_recv = int(parts[1])
+                        bytes_sent = int(parts[9])
+                        stats[iface] = (bytes_recv, bytes_sent)
+        except Exception as e:
+            logger.error(f"Error reading /host/proc/net/dev: {e}")
+        return stats
 
     def get_container_metrics(self, container, time_delta: float) -> Dict:
         try:
