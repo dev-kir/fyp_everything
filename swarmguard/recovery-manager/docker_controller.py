@@ -32,7 +32,11 @@ class DockerController:
             ]
             new_replicas = current_replicas + 1
             logger.info(f"Step 1: Scaling up {service_name} to {new_replicas} replicas with constraints")
-            service.update(mode={'Replicated': {'Replicas': new_replicas}}, constraints=constraints)
+
+            # Update spec with new replica count and constraints
+            spec['Mode']['Replicated']['Replicas'] = new_replicas
+            spec['TaskTemplate']['Placement'] = {'Constraints': constraints}
+            service.update(**spec)
 
             # Step 2: Wait for new container to be healthy
             timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
@@ -61,12 +65,14 @@ class DockerController:
 
             if not new_task_healthy:
                 logger.warning(f"New container not healthy after {timeout}s, rolling back")
-                service.update(mode={'Replicated': {'Replicas': current_replicas}})
+                spec['Mode']['Replicated']['Replicas'] = current_replicas
+                service.update(**spec)
                 return {'success': False, 'error': 'New container failed to become healthy'}
 
             # Step 3: Remove old container by scaling back to original count
             logger.info(f"Step 3: Scaling down to {current_replicas} replicas (removing old container)")
-            service.update(mode={'Replicated': {'Replicas': current_replicas}}, constraints=constraints)
+            spec['Mode']['Replicated']['Replicas'] = current_replicas
+            service.update(**spec)
 
             total_time = time.time() - start_time
             logger.info(f"Zero-downtime migration complete: {service_name} on {new_node} ({total_time:.2f}s)")
