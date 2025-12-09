@@ -25,7 +25,7 @@
       "collapsed": true,
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "gridPos": {
         "h": 1,
@@ -41,7 +41,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "gridPos": {
         "h": 1,
@@ -56,7 +56,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "description": "CPU usage percentage for selected node",
       "fieldConfig": {
@@ -144,7 +144,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-swarmguard"
+            "uid": "bf6isq46kqpkwb"
           },
           "query": "import \"math\"\nfrom(bucket: \"metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nodes\")\n  |> filter(fn: (r) => r._field == \"cpu\")\n  |> filter(fn: (r) => r.node == \"${node}\")\n  |> aggregateWindow(every: 10s, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: float(v: math.round(x: r._value * 100.0)) / 100.0 }))\n  |> yield(name: \"mean\")",
           "refId": "A"
@@ -156,7 +156,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "description": "Memory usage percentage for selected node",
       "fieldConfig": {
@@ -244,7 +244,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-swarmguard"
+            "uid": "bf6isq46kqpkwb"
           },
           "query": "import \"math\"\nfrom(bucket: \"metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nodes\")\n  |> filter(fn: (r) => r._field == \"mem\")\n  |> filter(fn: (r) => r.node == \"${node}\")\n  |> aggregateWindow(every: 10s, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: float(v: math.round(x: r._value * 100.0)) / 100.0 }))\n  |> yield(name: \"mean\")",
           "refId": "A"
@@ -256,7 +256,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "description": "Network traffic (Upload/Download) in Mbps for selected node",
       "fieldConfig": {
@@ -382,7 +382,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-swarmguard"
+            "uid": "bf6isq46kqpkwb"
           },
           "query": "import \"math\"\nfrom(bucket: \"metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nodes\")\n  |> filter(fn: (r) => r._field == \"net_in\" or r._field == \"net_out\")\n  |> filter(fn: (r) => r.node == \"${node}\")\n  |> aggregateWindow(every: 10s, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: float(v: math.round(x: r._value * 1000.0)) / 1000.0 }))\n  |> yield(name: \"mean\")",
           "refId": "A"
@@ -395,7 +395,7 @@
       "collapsed": false,
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "gridPos": {
         "h": 1,
@@ -411,7 +411,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "description": "CPU usage for all nodes",
       "fieldConfig": {
@@ -498,7 +498,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-swarmguard"
+            "uid": "bf6isq46kqpkwb"
           },
           "query": "import \"math\"\nfrom(bucket: \"metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nodes\")\n  |> filter(fn: (r) => r._field == \"cpu\")\n  |> aggregateWindow(every: 10s, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: float(v: math.round(x: r._value * 100.0)) / 100.0 }))\n  |> yield(name: \"mean\")",
           "refId": "A"
@@ -510,7 +510,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "description": "Memory usage for all nodes",
       "fieldConfig": {
@@ -597,7 +597,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-swarmguard"
+            "uid": "bf6isq46kqpkwb"
           },
           "query": "import \"math\"\nfrom(bucket: \"metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nodes\")\n  |> filter(fn: (r) => r._field == \"mem\")\n  |> aggregateWindow(every: 10s, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: float(v: math.round(x: r._value * 100.0)) / 100.0 }))\n  |> yield(name: \"mean\")",
           "refId": "A"
@@ -609,7 +609,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "description": "Network download traffic for all nodes",
       "fieldConfig": {
@@ -687,7 +687,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-swarmguard"
+            "uid": "bf6isq46kqpkwb"
           },
           "query": "import \"math\"\nfrom(bucket: \"metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nodes\")\n  |> filter(fn: (r) => r._field == \"net_in\")\n  |> aggregateWindow(every: 10s, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: float(v: math.round(x: r._value * 1000.0)) / 1000.0 }))\n  |> yield(name: \"mean\")",
           "refId": "A"
@@ -699,7 +699,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "description": "Network upload traffic for all nodes",
       "fieldConfig": {
@@ -777,7 +777,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-swarmguard"
+            "uid": "bf6isq46kqpkwb"
           },
           "query": "import \"math\"\nfrom(bucket: \"metrics\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"nodes\")\n  |> filter(fn: (r) => r._field == \"net_out\")\n  |> aggregateWindow(every: 10s, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: float(v: math.round(x: r._value * 1000.0)) / 1000.0 }))\n  |> yield(name: \"mean\")",
           "refId": "A"
@@ -789,7 +789,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "description": "Current status of all nodes",
       "fieldConfig": {
@@ -861,7 +861,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-swarmguard"
+            "uid": "bf6isq46kqpkwb"
           },
           "query": "import \"math\"\nfrom(bucket: \"metrics\")\n  |> range(start: -1m)\n  |> filter(fn: (r) => r._measurement == \"nodes\")\n  |> filter(fn: (r) => r._field == \"cpu\" or r._field == \"mem\")\n  |> aggregateWindow(every: 10s, fn: mean, createEmpty: false)\n  |> map(fn: (r) => ({ r with _value: float(v: math.round(x: r._value * 100.0)) / 100.0 }))\n  |> last()\n  |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> keep(columns: [\"node\", \"cpu\", \"mem\"])",
           "refId": "A"
@@ -874,7 +874,7 @@
       "collapsed": false,
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "gridPos": {
         "h": 1,
@@ -890,7 +890,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-swarmguard"
+        "uid": "bf6isq46kqpkwb"
       },
       "fieldConfig": {
         "defaults": {
@@ -993,7 +993,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-swarmguard"
+            "uid": "bf6isq46kqpkwb"
           },
           "query": "from(bucket: \"metrics\")\n  |> range(start: -15m)\n  |> filter(fn: (r) => r._measurement == \"containers\")\n  |> filter(fn: (r) => r.node == \"${node}\")\n  |> pivot(rowKey:[\"_time\", \"container\", \"cid\"], columnKey:[\"_field\"], valueColumn:\"_value\")\n  |> group(columns:[\"container\", \"cid\"])\n  |> sort(columns:[\"_time\"], desc:true)\n  |> limit(n:1)\n  |> group(columns:[])\n  |> keep(columns:[\"_time\", \"container\", \"cid\", \"cpu\", \"mem\", \"net_in\", \"net_out\"])\n  |> rename(columns:{_time: \"timestamp\"})\n  |> sort(columns:[\"cpu\"], desc:true)",
           "refId": "A"
@@ -1042,7 +1042,7 @@
         },
         "datasource": {
           "type": "influxdb",
-          "uid": "influxdb-swarmguard"
+          "uid": "bf6isq46kqpkwb"
         },
         "definition": "import \"influxdata/influxdb/schema\"\nschema.tagValues(\n  bucket: \"metrics\",\n  tag: \"node\",\n  predicate: (r) => r._measurement == \"nodes\",\n  start: -30d\n)",
         "hide": 0,
