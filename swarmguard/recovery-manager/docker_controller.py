@@ -4,6 +4,7 @@
 import logging
 import time
 import docker
+import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -33,22 +34,14 @@ class DockerController:
             new_replicas = current_replicas + 1
             logger.info(f"Step 1: Scaling up {service_name} to {new_replicas} replicas with constraints")
 
-            # Update with only the fields we need to change
-            version = service.version
-            service.update(
-                version=version,
-                mode={'Replicated': {'Replicas': new_replicas}},
-                task_template=spec['TaskTemplate']
-            )
+            # Scale up using docker CLI (simpler than API)
+            constraint_args = ' '.join([f'--constraint-add "{c}"' for c in constraints])
+            cmd = f'docker service update --replicas {new_replicas} {constraint_args} {service_name}'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Exception(f"Docker CLI error: {result.stderr}")
 
-            # Add constraints after initial scale
-            spec['TaskTemplate']['Placement'] = {'Constraints': constraints}
-            service.reload()
-            service.update(
-                version=service.version,
-                mode={'Replicated': {'Replicas': new_replicas}},
-                task_template=spec['TaskTemplate']
-            )
+            time.sleep(2)  # Wait for update to propagate
 
             # Step 2: Wait for new container to be healthy
             timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
@@ -77,22 +70,16 @@ class DockerController:
 
             if not new_task_healthy:
                 logger.warning(f"New container not healthy after {timeout}s, rolling back")
-                service.reload()
-                service.update(
-                    version=service.version,
-                    mode={'Replicated': {'Replicas': current_replicas}},
-                    task_template=spec['TaskTemplate']
-                )
+                cmd = f'docker service update --replicas {current_replicas} {service_name}'
+                subprocess.run(cmd, shell=True, capture_output=True)
                 return {'success': False, 'error': 'New container failed to become healthy'}
 
             # Step 3: Remove old container by scaling back to original count
             logger.info(f"Step 3: Scaling down to {current_replicas} replicas (removing old container)")
-            service.reload()
-            service.update(
-                version=service.version,
-                mode={'Replicated': {'Replicas': current_replicas}},
-                task_template=spec['TaskTemplate']
-            )
+            cmd = f'docker service update --replicas {current_replicas} {service_name}'
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise Exception(f"Docker CLI error: {result.stderr}")
 
             total_time = time.time() - start_time
             logger.info(f"Zero-downtime migration complete: {service_name} on {new_node} ({total_time:.2f}s)")
