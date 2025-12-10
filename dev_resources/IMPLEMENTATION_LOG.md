@@ -75,22 +75,35 @@ Implement zero-downtime proactive recovery for Docker Swarm with two scenarios:
 ---
 
 ### Attempt 7: Docker Swarm Rolling Update with Constraints
-**Approach:** Use `service.update(force_update=True)` with placement constraints and start-first strategy
+**Approach:** Use `service.update()` with task_template and update_config
 **Implementation:** Lines 19-167 in docker_controller.py
-**Strategy:**
+
+**Initial Error:** `update() got an unexpected keyword argument 'update_order'`
+**Root Cause:** Docker Python SDK doesn't accept `update_order`, `constraints`, or `rollback_config` as direct kwargs
+
+**Fixed Strategy:**
 1. Add placement constraint: `node.hostname != {from_node}`
-2. Call `service.update(force_update=True, constraints=new_constraints, update_order='start-first')`
-3. Docker Swarm will:
-   - Create new task on different node (following constraint)
-   - Start new task first (start-first order)
-   - Remove old task automatically after new one is healthy
-4. Wait for update to complete (max 30s)
-5. Verify task is on different node
+2. Update TaskTemplate with new placement constraints
+3. Pass `task_template` and `update_config` to `service.update()`
+4. UpdateConfig with `Order: 'start-first'` ensures zero downtime
+5. `force_update=True` forces task recreation
+6. Wait for update to complete (max 30s)
+7. Verify task is on different node
 
 **Key Parameters:**
-- `force_update=True`: Forces task recreation even if nothing changed
-- `update_order='start-first'`: Creates new task before stopping old one (zero downtime)
-- `rollback_config`: Auto-rollback if update fails
+```python
+service.update(
+    task_template=task_template,  # Contains Placement.Constraints
+    update_config={
+        'Parallelism': 1,
+        'FailureAction': 'pause',
+        'Monitor': 5000000000,
+        'MaxFailureRatio': 0.0,
+        'Order': 'start-first'  # Zero downtime
+    },
+    force_update=True
+)
+```
 
 **Expected Result:**
 - Task migrates from node A to node B
@@ -98,9 +111,9 @@ Implement zero-downtime proactive recovery for Docker Swarm with two scenarios:
 - MTTR < 10 seconds
 - Constraint ensures task doesn't return to problem node
 
-**Status:** 🔄 IN TESTING - Code complete, need to rebuild and test
+**Status:** 🔄 FIXED API CALL - Ready to rebuild and test
 
-**Code Reference:** [docker_controller.py:19-167](../swarmguard/recovery-manager/docker_controller.py#L19-L167)
+**Code Reference:** [docker_controller.py:53-89](../swarmguard/recovery-manager/docker_controller.py#L53-L89)
 
 ---
 

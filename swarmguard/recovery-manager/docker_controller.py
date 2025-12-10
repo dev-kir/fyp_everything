@@ -50,30 +50,39 @@ class DockerController:
 
             logger.info(f"New placement constraints: {new_constraints}")
 
-            # Step 2: Update service with new constraints and force recreate tasks
-            # Use rollback config to ensure we can recover if update fails
-            logger.info(f"Step 2: Forcing service update with start-first strategy")
+            # Step 2: Update service spec with new constraints
+            # This will force Docker to recreate tasks following the new placement rules
+            logger.info(f"Step 2: Updating service spec with new constraints")
 
             try:
-                # Update the service - Docker will recreate tasks following new constraints
-                # The UpdateConfig with start-first order ensures zero downtime
+                # Get the full service spec
+                task_template = spec.get('TaskTemplate', {})
+
+                # Update placement constraints
+                if 'Placement' not in task_template:
+                    task_template['Placement'] = {}
+                task_template['Placement']['Constraints'] = new_constraints
+
+                # Update the spec with new task template
+                spec['TaskTemplate'] = task_template
+
+                # Add UpdateConfig for zero-downtime rolling update
+                spec['UpdateConfig'] = {
+                    'Parallelism': 1,
+                    'FailureAction': 'pause',
+                    'Monitor': 5000000000,  # 5s in nanoseconds
+                    'MaxFailureRatio': 0.0,
+                    'Order': 'start-first'  # Start new task before stopping old one
+                }
+
+                # Force update to recreate tasks
+                logger.info(f"Calling service.update() with force_update=True")
                 service.update(
-                    # Force update even if nothing changed
-                    force_update=True,
-                    # Update constraints
-                    constraints=new_constraints,
-                    # Ensure start-first order (new task before old one stops)
-                    update_order='start-first',
-                    # Rollback on failure
-                    rollback_config={
-                        'Parallelism': 1,
-                        'FailureAction': 'rollback',
-                        'Monitor': 5000000000,  # 5s
-                        'MaxFailureRatio': 0.0,
-                        'Order': 'start-first'
-                    }
+                    task_template=task_template,
+                    update_config=spec['UpdateConfig'],
+                    force_update=True
                 )
-                logger.info(f"Service update initiated - Docker will handle task migration")
+                logger.info(f"Service update initiated - Docker will recreate tasks")
 
             except Exception as e:
                 logger.error(f"Service update failed: {e}")
