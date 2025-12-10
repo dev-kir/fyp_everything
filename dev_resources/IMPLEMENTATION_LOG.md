@@ -1,0 +1,231 @@
+# SwarmGuard Implementation Log
+
+**Date Started:** December 10, 2025
+**Current Status:** In Progress - Scenario 1 Testing
+**Last Updated:** December 10, 2025 14:15 UTC
+
+---
+
+## Objective
+
+Implement zero-downtime proactive recovery for Docker Swarm with two scenarios:
+1. **Scenario 1 (Migration):** CPU/memory high, network low → Migrate container to different node (0 downtime)
+2. **Scenario 2 (Scaling):** CPU/memory/network all high → Scale up/down dynamically (0 downtime)
+
+**Target MTTR:** < 10 seconds (better than Docker's reactive ~10-15s)
+
+---
+
+## Implementation Attempts
+
+### Attempt 1: Docker SDK service.update() with Constraints
+**Approach:** Use `service.update()` to add placement constraints excluding problem node
+**Result:** FAILED
+**Error:** `update() got unexpected keyword arguments 'EndpointSpec', 'Labels'...`
+**Issue:** Docker Python SDK doesn't accept full spec dict in update()
+**Lesson:** Cannot update constraints via Python SDK reliably
+
+---
+
+### Attempt 2: Docker CLI via Subprocess
+**Approach:** Install Docker CLI in recovery-manager container, use subprocess
+**Result:** FAILED
+**Error:** `/bin/sh: 1: docker: not found`
+**Fix Attempted:** Added Docker CLI to Dockerfile (173MB layer)
+**New Issue:** Push took hours, user got stuck
+**Lesson:** Docker CLI approach too heavy and slow
+
+---
+
+### Attempt 3: Scale Up + Scale Down (Rely on Docker Scheduler)
+**Approach:** Scale 1→2, let Docker place on different node, then scale 2→1
+**Result:** FAILED
+**Issue:** Docker's scale-down removes **oldest** tasks first, keeping **newest** task (on problem node)
+**Expected:** Task migrates from worker-3 to worker-4
+**Actual:** After scale 1→2→1, container back on worker-3
+**Lesson:** Cannot control which specific task Docker removes during scale-down
+
+---
+
+### Attempt 4: Task-Level Deletion via requests-unixsocket
+**Approach:** Use `DELETE /tasks/{id}` API via requests-unixsocket library
+**Result:** FAILED
+**Error:** `Invalid URL 'http+unix:///var/run/docker.sock/tasks/...'`
+**Issue:** URL encoding wrong for unix socket
+**Fix Attempted:** Used `urllib.parse.quote()` to encode socket path
+**New Error:** `Not supported URL scheme http+unix`
+**Lesson:** requests-unixsocket doesn't work as expected with Docker API
+
+---
+
+### Attempt 5: Docker SDK Low-Level API (remove_task)
+**Approach:** Use `self.client.api.remove_task(task_id)` from Docker SDK
+**Result:** IN PROGRESS - Currently testing
+**Code:** Line 152 in docker_controller.py
+**Status:** Rebuilt recovery-manager, deployed, testing now
+
+---
+
+### Attempt 6: Increase Wait Timeout for Health Checks
+**Issue:** Scale-up times out after 15s, but health check takes ~20s to pass
+**Evidence:** Task shows "Ready" state for 15+ seconds before becoming "Running"
+**Fix:** Increased wait_timeout from 15s to 30s (line 57 in docker_controller.py)
+**Status:** Fixing now, need to rebuild and test
+
+---
+
+## Current Blockers
+
+### Blocker 1: Scale-Up Timeout During Migration
+**Problem:** New task takes 20+ seconds to pass health check and become "Running"
+**Current Wait:** 15 seconds (too short)
+**Fix Applied:** Increased to 30 seconds
+**Next Step:** Rebuild and test
+
+**Health Check Config:**
+```yaml
+health-cmd: 'curl -f http://localhost:8080/health || exit 1'
+health-interval: 5s
+health-timeout: 3s
+```
+
+**Timeline:**
+- T+0s: service.scale(2) called
+- T+2-6s: Container starts, FastAPI initializing
+- T+6-20s: Health checks running every 5s
+- T+20s: Task becomes "Running" (healthy)
+
+---
+
+## Code Changes Summary
+
+### Files Modified
+
+1. **[recovery-manager/docker_controller.py](../swarmguard/recovery-manager/docker_controller.py)**
+   - Line 57: Increased wait_timeout from 15s to 30s
+   - Line 152: Changed to `self.client.api.remove_task(old_task_id)`
+   - Removed requests-unixsocket dependency
+
+2. **[recovery-manager/requirements.txt](../swarmguard/recovery-manager/requirements.txt)**
+   - Removed `requests-unixsocket==0.3.0`
+   - Using only Docker SDK built-in methods
+
+3. **[monitoring-agent/metrics_collector.py](../swarmguard/monitoring-agent/metrics_collector.py)**
+   - Line 126: Fixed CPU normalization to 0-100%
+   - Previously allowed up to 800% (8 cores × 100%)
+
+4. **[web-stress/stress/cpu_stress.py](../swarmguard/web-stress/stress/cpu_stress.py)**
+   - Lines 54-62: Added gradual ramp-up with delays
+   - Processes start one-by-one with `delay_per_process` intervals
+
+5. **[tests/deploy_web_stress.sh](../swarmguard/tests/deploy_web_stress.sh)**
+   - Line 16: Added `--constraint 'node.hostname!=master'`
+   - Prevents master node from running application containers
+
+---
+
+## Testing Status
+
+### Scenario 1: Migration (CPU/Memory High, Network Low)
+**Status:** ⚠️ IN PROGRESS
+**Test Command:**
+```bash
+curl "http://192.168.2.53:8080/stress/cpu?target=80&duration=180&ramp=20"
+```
+
+**Expected Behavior:**
+1. Container on worker-3 hits 75% CPU threshold
+2. Recovery manager detects Scenario 1 (high CPU, low network)
+3. Scale from 1→2 replicas (new task on worker-4 or worker-1)
+4. Wait for new task to become healthy (~20s)
+5. Remove old task on worker-3 via `remove_task()` API
+6. Final state: 1 replica on different node (worker-4 or worker-1)
+7. MTTR < 10 seconds
+
+**Current Issue:** Timeout at step 4 (need 30s wait, had 15s)
+
+---
+
+### Scenario 2: Horizontal Scaling (All Metrics High)
+**Status:** ❌ NOT STARTED
+**Requirements:**
+- Scale up one replica at a time when all metrics high
+- Scale down when `all_container_usage < threshold * (replicas - 1)`
+- Maintain zero downtime during scale operations
+
+---
+
+## Next Steps
+
+1. ✅ **Fix wait timeout** - Changed to 30s
+2. 🔄 **Rebuild recovery-manager** - User will execute
+3. 🔄 **Test Scenario 1 migration** - Verify container migrates successfully
+4. ⏳ **Measure MTTR** - Should be < 10 seconds
+5. ⏳ **Implement Scenario 2** - Horizontal scaling logic
+6. ⏳ **Full system test** - Both scenarios with load testing
+
+---
+
+## Commands for User to Run
+
+### Rebuild Recovery Manager
+```bash
+cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/recovery-manager
+docker build -t docker-registry.amirmuz.com/swarmguard-recovery:latest .
+docker push docker-registry.amirmuz.com/swarmguard-recovery:latest
+```
+
+### Deploy Updated Recovery Manager
+```bash
+curl "http://192.168.2.53:8080/stress/stop"  # Stop current stress
+ssh master "docker service scale web-stress=1"  # Reset to 1 replica
+sleep 10
+ssh master "docker service update --force recovery-manager"  # Deploy new version
+sleep 5
+ssh master "docker service logs recovery-manager --tail 10"  # Verify
+```
+
+### Test Scenario 1
+```bash
+# Check which node web-stress is on
+ssh master "docker service ps web-stress --format 'table {{.Name}}\t{{.Node}}\t{{.CurrentState}}'"
+
+# Trigger stress (adjust IP to match node)
+curl "http://192.168.2.53:8080/stress/cpu?target=80&duration=180&ramp=20"
+
+# Monitor migration
+watch -n 2 "ssh master 'docker service ps web-stress --format \"table {{.Name}}\t{{.Node}}\t{{.CurrentState}}\"'"
+
+# Check logs for MTTR
+ssh master "docker service logs recovery-manager --tail 50 | grep -E 'Zero-downtime|duration|Step|Final|Verified'"
+```
+
+---
+
+## Lessons Learned
+
+1. **Docker SDK Limitations:** Cannot reliably update service constraints via Python SDK
+2. **Scale-Down Behavior:** Docker removes oldest tasks first, not controllable via scale()
+3. **Health Check Timing:** FastAPI containers take 15-20s to become healthy, must account for this
+4. **Task Deletion:** Must use low-level API `remove_task()` to control which specific task is removed
+5. **Timeout Values:** Always add buffer for health checks (30s safer than 15s)
+
+---
+
+## Performance Targets
+
+| Metric | Target | Current Status |
+|--------|--------|----------------|
+| Alert Latency | < 1 second | ⚠️ 16s (needs optimization) |
+| Migration MTTR | < 10 seconds | 🔄 Testing |
+| Zero Downtime | 0 seconds | 🔄 Testing |
+| CPU Overhead | < 5% | ✅ Minimal |
+| Network Overhead | < 1 Mbps | ✅ < 0.5 Mbps |
+
+---
+
+## References
+
+- [PRD.md](PRD.md) - Original requirements
+- [docker_controller.py](../swarmguard/recovery-manager/docker_controller.py) - Migration logic
+- [Docker Swarm API Docs](https://docs.docker.com/engine/api/v1.43/)

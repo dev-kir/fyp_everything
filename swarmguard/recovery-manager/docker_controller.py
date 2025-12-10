@@ -54,7 +54,7 @@ class DockerController:
 
             # Wait for new task to be created and running
             wait_start = time.time()
-            wait_timeout = 15  # Max 15s to wait for scale-up
+            wait_timeout = 30  # Max 30s to wait for scale-up (includes health check time)
             new_task_started = False
 
             while (time.time() - wait_start) < wait_timeout:
