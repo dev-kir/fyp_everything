@@ -48,8 +48,7 @@ class DockerController:
                 'node.role == worker'
             ])
 
-            # Use Docker CLI to apply constraints (Docker SDK has issues)
-            # Apply constraints first, then scale
+            # Use Docker CLI to apply constraints (requires docker binary in container)
             logger.info(f"Applying constraints via Docker CLI: {new_constraints}")
             try:
                 # Add constraints one by one
