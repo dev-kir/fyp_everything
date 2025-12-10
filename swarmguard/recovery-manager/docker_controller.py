@@ -118,35 +118,79 @@ class DockerController:
                 service.scale(current_replicas)
                 return {'success': False, 'error': 'All tasks on problem node'}
 
-            # Step 3: Scale down while KEEPING the constraint to exclude problem node
-            logger.info(f"Step 3: Scaling down to {current_replicas} while keeping {from_node} excluded")
-            time.sleep(2)  # Give new container a moment to stabilize
+            # Step 3: Remove OLD task on problem node (NOT scale down, which removes newest task)
+            logger.info(f"Step 3: Removing old task on {from_node} (keeping new task on {new_node})")
 
-            # Scale down with constraints still in place
-            # This ensures Docker removes the old task from worker-3, not the new one on worker-4
+            # Find the OLD task on problem node
             service.reload()
-            service.scale(current_replicas)
-            logger.info(f"Scaled down to {current_replicas} replicas")
+            tasks = service.tasks()  # Get ALL tasks including shutdown ones
 
-            # Wait a moment for scale-down to complete
-            time.sleep(2)
-
-            # Verify the container is on the new node
-            service.reload()
-            tasks = service.tasks(filters={'desired-state': 'running'})
-            final_node = None
+            old_task_id = None
             for task in tasks:
                 node_id = task.get('NodeID')
                 if node_id:
                     task_node = self.client.nodes.get(node_id)
-                    final_node = task_node.attrs['Description']['Hostname']
-                    break
+                    task_hostname = task_node.attrs['Description']['Hostname']
+                    task_id = task.get('ID')
+                    task_state = task.get('Status', {}).get('State')
 
-            if final_node == from_node:
-                logger.error(f"Migration failed! Container returned to {from_node}")
-                return {'success': False, 'error': f'Container returned to problem node {from_node}'}
+                    # Find OLD task still running on problem node
+                    if task_hostname == from_node and task_state == 'running':
+                        # This is the OLD task we want to remove
+                        if task_id in tasks_by_node.get(from_node, []):
+                            old_task_id = task_id
+                            logger.info(f"Found old task {old_task_id[:12]} on {from_node}")
+                            break
 
-            logger.info(f"Verified: Container is on {final_node} (not {from_node})")
+            if not old_task_id:
+                logger.warning(f"Could not find old task on {from_node} - may have already been removed")
+            else:
+                # Remove the specific old task using Docker API
+                try:
+                    # Use low-level API to stop specific task
+                    import requests_unixsocket
+                    session = requests_unixsocket.Session()
+                    socket_path = self.config.get('docker.socket_path', 'unix:///var/run/docker.sock').replace('unix://', '')
+
+                    # Docker API: DELETE /tasks/{id}
+                    response = session.delete(f'http+unix://{socket_path}/tasks/{old_task_id}')
+                    if response.status_code in [200, 204]:
+                        logger.info(f"Removed old task {old_task_id[:12]} from {from_node}")
+                    else:
+                        logger.error(f"Failed to remove task: HTTP {response.status_code}")
+                except Exception as e:
+                    logger.error(f"Task removal failed: {e}, falling back to scale")
+                    # Fallback: scale down (may remove wrong task)
+                    service.reload()
+                    service.scale(current_replicas)
+
+            time.sleep(3)  # Wait for task removal
+
+            # Verify final state
+            service.reload()
+            tasks = service.tasks(filters={'desired-state': 'running'})
+            final_tasks = {}
+            for task in tasks:
+                node_id = task.get('NodeID')
+                if node_id:
+                    task_state = task.get('Status', {}).get('State')
+                    if task_state == 'running':
+                        task_node = self.client.nodes.get(node_id)
+                        task_hostname = task_node.attrs['Description']['Hostname']
+                        final_tasks[task_hostname] = final_tasks.get(task_hostname, 0) + 1
+
+            logger.info(f"Final task distribution: {final_tasks}")
+
+            # Check if still on problem node
+            if from_node in final_tasks:
+                logger.error(f"Migration failed! Task still on {from_node}")
+                return {'success': False, 'error': f'Task still on {from_node}'}
+
+            if new_node not in final_tasks:
+                logger.error(f"Migration failed! Task not on {new_node}")
+                return {'success': False, 'error': f'Task not on {new_node}'}
+
+            logger.info(f"Verified: Task migrated from {from_node} to {new_node}")
 
             total_time = time.time() - start_time
             logger.info(f"Zero-downtime migration complete: {service_name} on {new_node} ({total_time:.2f}s)")
