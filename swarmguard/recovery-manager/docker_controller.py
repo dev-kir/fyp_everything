@@ -47,32 +47,27 @@ class DockerController:
                 'node.role == worker'
             ])
 
-            # Apply constraints using Python Docker SDK (simpler approach)
+            # Apply constraints using Python Docker SDK
             logger.info(f"Applying constraints: {new_constraints}")
             try:
-                # Get current service spec
-                service_spec = spec.copy()
+                from docker.types import ServiceMode, TaskTemplate, Placement
 
-                # Update placement constraints
-                if 'TaskTemplate' not in service_spec:
-                    service_spec['TaskTemplate'] = {}
-                if 'Placement' not in service_spec['TaskTemplate']:
-                    service_spec['TaskTemplate']['Placement'] = {}
+                # Build placement with constraints
+                placement = Placement(constraints=new_constraints)
 
-                service_spec['TaskTemplate']['Placement']['Constraints'] = new_constraints
-                service_spec['Mode']['Replicated']['Replicas'] = new_replicas
+                # Build task template with updated placement
+                task_template = TaskTemplate(
+                    container_spec=spec['TaskTemplate']['ContainerSpec'],
+                    placement=placement
+                )
 
-                # Get version for optimistic locking
-                version = service.attrs['Version']['Index']
+                # Build service mode with new replica count
+                mode = ServiceMode('replicated', replicas=new_replicas)
 
-                # Update service with new constraints AND scale up in one operation
+                # Update service (this applies constraints AND scales)
                 service.update(
-                    version=version,
-                    mode={'Replicated': {'Replicas': new_replicas}},
-                    task_template={
-                        'ContainerSpec': spec['TaskTemplate']['ContainerSpec'],
-                        'Placement': {'Constraints': new_constraints}
-                    }
+                    mode=mode,
+                    task_template=task_template
                 )
 
                 logger.info(f"Applied constraints and scaled to {new_replicas} replicas")
