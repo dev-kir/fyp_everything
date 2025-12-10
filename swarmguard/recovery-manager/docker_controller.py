@@ -48,92 +48,75 @@ class DockerController:
                 'node.role == worker'
             ])
 
-            # PRAGMATIC SOLUTION: Scale up, check placement, retry if needed
-            # Since Docker SDK constraints are unreliable, we'll verify and retry
+            # Step 1: Scale up (Docker will place new task somewhere)
             logger.info(f"Scaling to {new_replicas} replicas")
+            service.scale(new_replicas)
 
-            max_attempts = 3
-            for attempt in range(max_attempts):
-                # Scale up
-                service.scale(new_replicas)
-                time.sleep(4)  # Wait for task creation
+            # Wait for new task to be created and running
+            wait_start = time.time()
+            wait_timeout = 15  # Max 15s to wait for scale-up
+            new_task_started = False
 
-                # Check if we have a task on different node
+            while (time.time() - wait_start) < wait_timeout:
+                time.sleep(2)
                 service.reload()
                 tasks = service.tasks(filters={'desired-state': 'running'})
 
-                nodes_with_tasks = set()
+                # Count running tasks
+                running_count = 0
                 for task in tasks:
-                    node_id = task.get('NodeID')
-                    if node_id:
-                        task_state = task.get('Status', {}).get('State')
-                        if task_state == 'running':
-                            task_node = self.client.nodes.get(node_id)
-                            task_hostname = task_node.attrs['Description']['Hostname']
-                            nodes_with_tasks.add(task_hostname)
+                    task_state = task.get('Status', {}).get('State')
+                    if task_state == 'running':
+                        running_count += 1
 
-                logger.info(f"Attempt {attempt+1}: Tasks running on nodes: {nodes_with_tasks}")
+                logger.info(f"Waiting for scale-up: {running_count}/{new_replicas} tasks running")
 
-                # Check if we have task on different node
-                if len(nodes_with_tasks) > 1 or (len(nodes_with_tasks) == 1 and from_node not in nodes_with_tasks):
-                    logger.info(f"Success: Found task on node other than {from_node}")
+                if running_count >= new_replicas:
+                    new_task_started = True
                     break
 
-                # All tasks still on problem node - force restart one task
-                if attempt < max_attempts - 1:
-                    logger.warning(f"All tasks on {from_node}, forcing task recreation (attempt {attempt+1})")
-                    # Scale down and back up to force Docker to redistribute
-                    service.scale(current_replicas)
-                    time.sleep(2)
-                    # Try again
-                else:
-                    logger.error(f"Failed to create task on different node after {max_attempts} attempts")
-                    return {'success': False, 'error': 'Could not place task on different node'}
+            if not new_task_started:
+                logger.error(f"Scale-up failed: timeout waiting for {new_replicas} tasks")
+                return {'success': False, 'error': 'Scale-up timeout'}
 
-            # Step 2: Wait for new container to be healthy
-            timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
-            wait_start = time.time()
-            new_task_healthy = False
+            # Check where tasks are placed
+            service.reload()
+            tasks = service.tasks(filters={'desired-state': 'running'})
+
+            tasks_by_node = {}
+            for task in tasks:
+                node_id = task.get('NodeID')
+                if node_id:
+                    task_state = task.get('Status', {}).get('State')
+                    if task_state == 'running':
+                        task_node = self.client.nodes.get(node_id)
+                        task_hostname = task_node.attrs['Description']['Hostname']
+                        task_id = task.get('ID')
+
+                        if task_hostname not in tasks_by_node:
+                            tasks_by_node[task_hostname] = []
+                        tasks_by_node[task_hostname].append(task_id)
+
+            logger.info(f"Task placement after scale-up: {dict(tasks_by_node)}")
+
+            # Check if we have task on different node
+            if from_node in tasks_by_node and len(tasks_by_node) == 1:
+                logger.error(f"All {new_replicas} tasks on same node {from_node} - Docker Swarm not distributing")
+                return {'success': False, 'error': f'All tasks placed on {from_node}, cannot migrate'}
+
+            # Step 2: Identify which node has the new task (not on problem node)
+            # We already have tasks_by_node from Step 1
             new_node = None
+            for node_hostname, task_ids in tasks_by_node.items():
+                if node_hostname != from_node:
+                    new_node = node_hostname
+                    logger.info(f"Step 2: New container running on {new_node}")
+                    break
 
-            while (time.time() - wait_start) < timeout:
-                try:
-                    time.sleep(1)  # Give Docker time to create new task
-                    service.reload()  # Reload service to get updated tasks
-                    tasks = service.tasks(filters={'desired-state': 'running'})
-
-                    # Count running tasks by node
-                    running_nodes = []
-                    for task in tasks:
-                        node_id = task.get('NodeID')
-                        if not node_id:
-                            continue
-                        task_state = task.get('Status', {}).get('State')
-                        if task_state == 'running':
-                            task_node = self.client.nodes.get(node_id)
-                            task_hostname = task_node.attrs['Description']['Hostname']
-                            running_nodes.append(task_hostname)
-
-                    # Check if we have a new replica running on a different node
-                    if len(running_nodes) >= new_replicas:
-                        for node_hostname in running_nodes:
-                            if node_hostname != from_node:
-                                new_task_healthy = True
-                                new_node = node_hostname
-                                logger.info(f"Step 2: New container healthy on {new_node}")
-                                break
-
-                    if new_task_healthy:
-                        break
-                except Exception as e:
-                    logger.debug(f"Error checking tasks: {e}")
-                    time.sleep(0.5)
-
-            if not new_task_healthy:
-                logger.warning(f"New container not healthy after {timeout}s, rolling back")
-                service.reload()
+            if not new_node:
+                logger.error(f"Could not find task on node other than {from_node}")
                 service.scale(current_replicas)
-                return {'success': False, 'error': 'New container failed to become healthy'}
+                return {'success': False, 'error': 'All tasks on problem node'}
 
             # Step 3: Scale down while KEEPING the constraint to exclude problem node
             logger.info(f"Step 3: Scaling down to {current_replicas} while keeping {from_node} excluded")
