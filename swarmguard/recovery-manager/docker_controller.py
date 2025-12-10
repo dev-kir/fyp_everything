@@ -4,7 +4,6 @@
 import logging
 import time
 import docker
-import subprocess
 
 logger = logging.getLogger(__name__)
 
@@ -48,42 +47,48 @@ class DockerController:
                 'node.role == worker'
             ])
 
-            # Use Docker CLI to apply constraints (requires docker binary in container)
-            logger.info(f"Applying constraints via Docker CLI: {new_constraints}")
+            # Apply constraints using Python Docker SDK (simpler approach)
+            logger.info(f"Applying constraints: {new_constraints}")
             try:
-                # Add constraints one by one
-                for constraint in new_constraints:
-                    # Check if constraint already exists to avoid duplicates
-                    existing = False
-                    for existing_constraint in current_constraints:
-                        if constraint in existing_constraint:
-                            existing = True
-                            break
+                # Get current service spec
+                service_spec = spec.copy()
 
-                    if not existing:
-                        cmd = f'docker service update --constraint-add "{constraint}" {service_name}'
-                        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
-                        if result.returncode != 0:
-                            logger.error(f"Failed to add constraint '{constraint}': {result.stderr}")
-                        else:
-                            logger.info(f"Added constraint: {constraint}")
-                        time.sleep(0.5)
+                # Update placement constraints
+                if 'TaskTemplate' not in service_spec:
+                    service_spec['TaskTemplate'] = {}
+                if 'Placement' not in service_spec['TaskTemplate']:
+                    service_spec['TaskTemplate']['Placement'] = {}
 
-                # Now scale with constraints in place
-                cmd = f'docker service scale {service_name}={new_replicas}'
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
-                if result.returncode != 0:
-                    logger.error(f"Failed to scale: {result.stderr}")
-                    return {'success': False, 'error': f'Scale failed: {result.stderr}'}
+                service_spec['TaskTemplate']['Placement']['Constraints'] = new_constraints
+                service_spec['Mode']['Replicated']['Replicas'] = new_replicas
 
-                logger.info(f"Scaled to {new_replicas} replicas with constraints applied")
+                # Get version for optimistic locking
+                version = service.attrs['Version']['Index']
+
+                # Update service with new constraints AND scale up in one operation
+                service.update(
+                    version=version,
+                    mode={'Replicated': {'Replicas': new_replicas}},
+                    task_template={
+                        'ContainerSpec': spec['TaskTemplate']['ContainerSpec'],
+                        'Placement': {'Constraints': new_constraints}
+                    }
+                )
+
+                logger.info(f"Applied constraints and scaled to {new_replicas} replicas")
                 time.sleep(2)  # Give Docker time to start new task
-            except subprocess.TimeoutExpired:
-                logger.error("Docker CLI command timed out")
-                return {'success': False, 'error': 'Docker command timeout'}
+
             except Exception as e:
-                logger.error(f"Failed to apply constraints via CLI: {e}")
-                return {'success': False, 'error': str(e)}
+                logger.error(f"Failed to apply constraints: {e}")
+                logger.info("Attempting fallback: scale without constraint update")
+                try:
+                    service.reload()
+                    service.scale(new_replicas)
+                    logger.warning(f"Fallback: scaled to {new_replicas} without updating constraints")
+                    time.sleep(2)
+                except Exception as scale_err:
+                    logger.error(f"Scale fallback also failed: {scale_err}")
+                    return {'success': False, 'error': str(scale_err)}
 
             # Step 2: Wait for new container to be healthy
             timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
