@@ -145,28 +145,14 @@ class DockerController:
             if not old_task_id:
                 logger.warning(f"Could not find old task on {from_node} - may have already been removed")
             else:
-                # Remove the specific old task using Docker API
+                # Remove the specific old task using Docker low-level API
                 try:
-                    # Use low-level API to stop specific task
-                    import requests_unixsocket
-                    import urllib.parse
-                    session = requests_unixsocket.Session()
-
-                    # Encode socket path for URL (e.g., /var/run/docker.sock -> %2Fvar%2Frun%2Fdocker.sock)
-                    socket_path = self.config.get('docker.socket_path', 'unix:///var/run/docker.sock').replace('unix://', '')
-                    encoded_socket = urllib.parse.quote(socket_path, safe='')
-
-                    # Docker API: DELETE /tasks/{id}
-                    url = f'http+unix://{encoded_socket}/tasks/{old_task_id}'
-                    logger.info(f"Calling DELETE {url}")
-                    response = session.delete(url)
-
-                    if response.status_code in [200, 204]:
-                        logger.info(f"Removed old task {old_task_id[:12]} from {from_node}")
-                    else:
-                        logger.error(f"Failed to remove task: HTTP {response.status_code} - {response.text}")
+                    # Use Docker SDK's low-level API client
+                    logger.info(f"Attempting to remove task {old_task_id[:12]} via API")
+                    response = self.client.api.remove_task(old_task_id)
+                    logger.info(f"Removed old task {old_task_id[:12]} from {from_node} - Response: {response}")
                 except Exception as e:
-                    logger.error(f"Task removal failed: {e}, falling back to scale")
+                    logger.error(f"Task removal via API failed: {e}, falling back to scale")
                     # Fallback: scale down (may remove wrong task)
                     service.reload()
                     service.scale(current_replicas)
