@@ -4,6 +4,7 @@
 import logging
 import time
 import docker
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -47,43 +48,47 @@ class DockerController:
                 'node.role == worker'
             ])
 
-            # Apply constraints using Python Docker SDK
-            logger.info(f"Applying constraints: {new_constraints}")
-            try:
-                from docker.types import ServiceMode, TaskTemplate, Placement
+            # PRAGMATIC SOLUTION: Scale up, check placement, retry if needed
+            # Since Docker SDK constraints are unreliable, we'll verify and retry
+            logger.info(f"Scaling to {new_replicas} replicas")
 
-                # Build placement with constraints
-                placement = Placement(constraints=new_constraints)
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                # Scale up
+                service.scale(new_replicas)
+                time.sleep(4)  # Wait for task creation
 
-                # Build task template with updated placement
-                task_template = TaskTemplate(
-                    container_spec=spec['TaskTemplate']['ContainerSpec'],
-                    placement=placement
-                )
+                # Check if we have a task on different node
+                service.reload()
+                tasks = service.tasks(filters={'desired-state': 'running'})
 
-                # Build service mode with new replica count
-                mode = ServiceMode('replicated', replicas=new_replicas)
+                nodes_with_tasks = set()
+                for task in tasks:
+                    node_id = task.get('NodeID')
+                    if node_id:
+                        task_state = task.get('Status', {}).get('State')
+                        if task_state == 'running':
+                            task_node = self.client.nodes.get(node_id)
+                            task_hostname = task_node.attrs['Description']['Hostname']
+                            nodes_with_tasks.add(task_hostname)
 
-                # Update service (this applies constraints AND scales)
-                service.update(
-                    mode=mode,
-                    task_template=task_template
-                )
+                logger.info(f"Attempt {attempt+1}: Tasks running on nodes: {nodes_with_tasks}")
 
-                logger.info(f"Applied constraints and scaled to {new_replicas} replicas")
-                time.sleep(2)  # Give Docker time to start new task
+                # Check if we have task on different node
+                if len(nodes_with_tasks) > 1 or (len(nodes_with_tasks) == 1 and from_node not in nodes_with_tasks):
+                    logger.info(f"Success: Found task on node other than {from_node}")
+                    break
 
-            except Exception as e:
-                logger.error(f"Failed to apply constraints: {e}")
-                logger.info("Attempting fallback: scale without constraint update")
-                try:
-                    service.reload()
-                    service.scale(new_replicas)
-                    logger.warning(f"Fallback: scaled to {new_replicas} without updating constraints")
+                # All tasks still on problem node - force restart one task
+                if attempt < max_attempts - 1:
+                    logger.warning(f"All tasks on {from_node}, forcing task recreation (attempt {attempt+1})")
+                    # Scale down and back up to force Docker to redistribute
+                    service.scale(current_replicas)
                     time.sleep(2)
-                except Exception as scale_err:
-                    logger.error(f"Scale fallback also failed: {scale_err}")
-                    return {'success': False, 'error': str(scale_err)}
+                    # Try again
+                else:
+                    logger.error(f"Failed to create task on different node after {max_attempts} attempts")
+                    return {'success': False, 'error': 'Could not place task on different node'}
 
             # Step 2: Wait for new container to be healthy
             timeout = self.config.get('scenarios.scenario1_migration.migration.health_timeout', 10)
