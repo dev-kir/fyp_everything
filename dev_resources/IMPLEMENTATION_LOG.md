@@ -76,11 +76,24 @@ Implement zero-downtime proactive recovery for Docker Swarm with two scenarios:
 
 ## Current Blockers
 
-### Blocker 1: Scale-Up Timeout During Migration
-**Problem:** New task takes 20+ seconds to pass health check and become "Running"
-**Current Wait:** 15 seconds (too short)
-**Fix Applied:** Increased to 30 seconds
-**Next Step:** Rebuild and test
+### Blocker 1: Scale-Down Removes Wrong Task ✅ PARTIALLY SOLVED
+**Problem:** After scale 1→2→1, Docker keeps the OLDEST task, not the NEWEST one
+**Evidence:**
+- First migration: worker-3 → worker-1 ✅ SUCCESS (23.2s MTTR)
+- Second migration: worker-1 → worker-3 ❌ FAILED (task stays on worker-1)
+
+**Root Cause:** Task `lfl9wpssh7m3...` on worker-1 is the oldest, so `service.scale(1)` always keeps it and removes newer tasks on worker-3.
+
+**Docker Behavior:**
+- `service.scale(2)`: Creates new task (e.g., on worker-3)
+- `service.scale(1)`: Removes NEWEST task (worker-3), keeps OLDEST (worker-1)
+
+**Attempted Fixes:**
+1. `self.client.api.remove_task()` - Method doesn't exist
+2. Direct task deletion - Not supported by Docker Swarm
+3. Force update with env var - Causes all tasks to restart (downtime)
+
+**Current Status:** Need alternative approach
 
 **Health Check Config:**
 ```yaml
