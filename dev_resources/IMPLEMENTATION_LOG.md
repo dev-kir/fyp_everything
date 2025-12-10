@@ -75,45 +75,40 @@ Implement zero-downtime proactive recovery for Docker Swarm with two scenarios:
 ---
 
 ### Attempt 7: Docker Swarm Rolling Update with Constraints
-**Approach:** Use `service.update()` with task_template and update_config
+**Approach:** Use `service.update()` with placement constraints
 **Implementation:** Lines 19-167 in docker_controller.py
 
-**Initial Error:** `update() got an unexpected keyword argument 'update_order'`
-**Root Cause:** Docker Python SDK doesn't accept `update_order`, `constraints`, or `rollback_config` as direct kwargs
+**Error 1:** `update() got an unexpected keyword argument 'update_order'`
+**Root Cause:** Docker Python SDK doesn't accept `update_order` as kwarg
 
-**Fixed Strategy:**
-1. Add placement constraint: `node.hostname != {from_node}`
-2. Update TaskTemplate with new placement constraints
-3. Pass `task_template` and `update_config` to `service.update()`
-4. UpdateConfig with `Order: 'start-first'` ensures zero downtime
-5. `force_update=True` forces task recreation
-6. Wait for update to complete (max 30s)
-7. Verify task is on different node
+**Error 2:** `update() got an unexpected keyword argument 'task_template'`
+**Root Cause:** Docker Python SDK doesn't accept `task_template` or `update_config` as kwargs either
 
-**Key Parameters:**
+**Current Strategy (3rd iteration):**
 ```python
 service.update(
-    task_template=task_template,  # Contains Placement.Constraints
-    update_config={
-        'Parallelism': 1,
-        'FailureAction': 'pause',
-        'Monitor': 5000000000,
-        'MaxFailureRatio': 0.0,
-        'Order': 'start-first'  # Zero downtime
-    },
-    force_update=True
+    image=current_image,        # Required parameter
+    constraints=new_constraints, # Placement constraints
+    force_update=True           # Force task recreation
 )
 ```
 
+**Approach:**
+1. Add placement constraint: `node.hostname != {from_node}`
+2. Get current image from service spec
+3. Call `service.update(image=..., constraints=..., force_update=True)`
+4. Docker should recreate task following new constraint
+5. Wait for update to complete (max 30s)
+6. Verify task is on different node
+
 **Expected Result:**
 - Task migrates from node A to node B
-- Zero downtime (new task starts before old one stops)
-- MTTR < 10 seconds
 - Constraint ensures task doesn't return to problem node
+- MTTR < 10 seconds
 
-**Status:** 🔄 FIXED API CALL - Ready to rebuild and test
+**Status:** 🔄 TESTING API CALL #3 - Need to rebuild and test
 
-**Code Reference:** [docker_controller.py:53-89](../swarmguard/recovery-manager/docker_controller.py#L53-L89)
+**Code Reference:** [docker_controller.py:53-79](../swarmguard/recovery-manager/docker_controller.py#L53-L79)
 
 ---
 
@@ -269,7 +264,11 @@ ssh master "docker service logs recovery-manager --tail 50 | grep -E 'Zero-downt
 5. **Timeout Values:** Always add buffer for health checks (30s safer than 15s)
 6. **Rolling Updates:** The proper Docker Swarm way for zero-downtime migration is `service.update(force_update=True)` with constraints
 7. **Constraint Application:** Placement constraints only apply during task creation/recreation, not to existing tasks
-8. **Update Order:** `update_order='start-first'` creates new task before stopping old one (critical for zero downtime)
+8. **Docker SDK API:** The Python SDK's `service.update()` signature is undocumented - trial and error needed
+   - ❌ `update_order='start-first'` - not accepted
+   - ❌ `task_template={...}` - not accepted
+   - ❌ `update_config={...}` - not accepted
+   - ✅ `image=..., constraints=..., force_update=True` - testing now
 
 ---
 

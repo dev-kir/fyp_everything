@@ -50,42 +50,32 @@ class DockerController:
 
             logger.info(f"New placement constraints: {new_constraints}")
 
-            # Step 2: Update service spec with new constraints
-            # This will force Docker to recreate tasks following the new placement rules
-            logger.info(f"Step 2: Updating service spec with new constraints")
+            # Step 2: Update service using Docker SDK's update method
+            # The update() method accepts the image and other top-level params
+            # To update constraints, we need to use the 'spec' approach
+            logger.info(f"Step 2: Updating service with new constraints via force update")
 
             try:
-                # Get the full service spec
-                task_template = spec.get('TaskTemplate', {})
+                # Get current image from task template
+                container_spec = spec.get('TaskTemplate', {}).get('ContainerSpec', {})
+                current_image = container_spec.get('Image', '')
 
-                # Update placement constraints
-                if 'Placement' not in task_template:
-                    task_template['Placement'] = {}
-                task_template['Placement']['Constraints'] = new_constraints
+                logger.info(f"Current image: {current_image}")
+                logger.info(f"Calling service.update() with constraints={new_constraints}")
 
-                # Update the spec with new task template
-                spec['TaskTemplate'] = task_template
-
-                # Add UpdateConfig for zero-downtime rolling update
-                spec['UpdateConfig'] = {
-                    'Parallelism': 1,
-                    'FailureAction': 'pause',
-                    'Monitor': 5000000000,  # 5s in nanoseconds
-                    'MaxFailureRatio': 0.0,
-                    'Order': 'start-first'  # Start new task before stopping old one
-                }
-
-                # Force update to recreate tasks
-                logger.info(f"Calling service.update() with force_update=True")
+                # Docker SDK's service.update() accepts constraints as a kwarg
+                # This should update the TaskTemplate.Placement.Constraints
                 service.update(
-                    task_template=task_template,
-                    update_config=spec['UpdateConfig'],
+                    image=current_image,
+                    constraints=new_constraints,
                     force_update=True
                 )
                 logger.info(f"Service update initiated - Docker will recreate tasks")
 
             except Exception as e:
                 logger.error(f"Service update failed: {e}")
+                logger.error(f"Error type: {type(e).__name__}")
+                logger.error(f"Error details: {str(e)}")
                 return {'success': False, 'error': f'Update failed: {e}'}
 
             # Step 3: Wait for rolling update to complete
