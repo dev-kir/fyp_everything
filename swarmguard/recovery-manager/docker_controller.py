@@ -47,8 +47,8 @@ class DockerController:
             logger.info(f"Zero-downtime migration: {service_name} from {from_node} (replicas={current_replicas})")
 
             # For Scenario 1: TRUE zero-downtime migration
-            # Strategy: Scale up → Wait for healthy → Remove old task
-            # This ensures new container is READY before old one stops
+            # Strategy: Add constraint → Scale up → Wait for healthy → Remove old task
+            # This ensures new container is on DIFFERENT node and READY before old one stops
 
             # Step 1: Find the task ID on the problem node
             logger.info(f"Step 1: Finding task on {from_node}")
@@ -72,17 +72,49 @@ class DockerController:
                 logger.warning(f"No task found on {from_node}")
                 return {'success': False, 'error': f'No task on {from_node}'}
 
-            # Step 2: Scale up to 2 replicas (new task will be on different node)
+            # Step 2: Add placement constraint to FORCE new task on different node
+            logger.info(f"Step 2: Adding placement constraint to avoid {from_node}")
+
+            # Get current constraints
+            task_template = spec.get('TaskTemplate', {})
+            placement = task_template.get('Placement', {})
+            current_constraints = placement.get('Constraints', [])
+
+            # Remove any previous migration constraints (from old migrations)
+            base_constraints = [c for c in current_constraints if 'node.hostname!=' not in c]
+
+            # Add new constraint to avoid problem node
+            new_constraints = base_constraints + [f'node.hostname!={from_node}']
+            logger.info(f"Constraints: {current_constraints} → {new_constraints}")
+
+            # Get current image
+            container_spec = task_template.get('ContainerSpec', {})
+            current_image = container_spec.get('Image', '')
+
+            # Update service with new constraint (but keep replicas at 1 for now)
+            logger.info(f"Updating service with constraint node.hostname!={from_node}")
+            service.update(
+                image=current_image,
+                constraints=new_constraints
+            )
+
+            # Wait for update to apply
+            time.sleep(2)
+            service.reload()
+
+            logger.info(f"Constraint applied - {len(new_constraints)} total constraints")
+
+            # Step 3: Scale up to 2 replicas (new task will be on different node due to constraint)
             new_replicas = current_replicas + 1
-            logger.info(f"Step 2: Scaling up from {current_replicas} to {new_replicas} replicas")
+            logger.info(f"Step 3: Scaling up from {current_replicas} to {new_replicas} replicas")
             service.scale(new_replicas)
 
-            # Step 3: Wait for new task to be RUNNING AND HEALTHY
+            # Step 4: Wait for new task to be RUNNING AND HEALTHY
             wait_start = time.time()
             wait_timeout = 30  # Max 30s to wait for new task
             new_task_ready = False
 
-            logger.info(f"Step 3: Waiting for new task to be healthy (timeout {wait_timeout}s)")
+            logger.info(f"Step 4: Waiting for new task to be healthy (timeout {wait_timeout}s)")
 
             while (time.time() - wait_start) < wait_timeout:
                 time.sleep(2)
@@ -108,7 +140,7 @@ class DockerController:
                 service.scale(current_replicas)  # Rollback
                 return {'success': False, 'error': 'New task timeout'}
 
-            # Step 4: Verify new task is on DIFFERENT node
+            # Step 5: Verify new task is on DIFFERENT node
             service.reload()
             tasks = service.tasks(filters={'desired-state': 'running'})
 
@@ -134,10 +166,10 @@ class DockerController:
                 service.scale(current_replicas)  # Rollback
                 return {'success': False, 'error': f'New task on same node {from_node}'}
 
-            # Step 5: Stop the old task (using Docker CLI via API)
+            # Step 6: Stop the old task (using Docker CLI via API)
             # CRITICAL: This is what ensures zero downtime!
             # New task is running, NOW we can safely remove old one
-            logger.info(f"Step 4: Removing old task {old_task_id[:12]} from {from_node}")
+            logger.info(f"Step 6: Removing old task {old_task_id[:12]} from {from_node}")
 
             try:
                 # Use low-level API client to stop the task
@@ -152,7 +184,7 @@ class DockerController:
             # Wait for old task to shutdown
             time.sleep(3)
 
-            # Step 6: Verify final state
+            # Step 7: Verify final state
             service.reload()
             tasks = service.tasks(filters={'desired-state': 'running'})
 

@@ -186,6 +186,77 @@ service.update(
 
 ---
 
+### Attempt 10: Fix Same-Node Placement + Add Placement Constraints BEFORE Scaling
+**Issue 1:** New task placed on same node (worker-3) even when trying to migrate away from worker-3
+**Issue 2:** 4 seconds of downtime during migration (13:54:08 → 13:54:12)
+
+**Evidence from logs:**
+```
+05:54:07 - Step 2: Scaling up from 1 to 2 replicas
+05:54:13 - New task lg2ovsbs3jgh is running!
+05:54:13 - New task on worker-3  ← PROBLEM: Same node!
+05:54:13 - ERROR - New task placed on same node worker-3
+```
+
+**Evidence from health checks:**
+```
+2025-12-11T13:54:08+08:00 200  ← Last success
+2025-12-11T13:54:08+08:00 000DOWN  ← 4 seconds downtime
+2025-12-11T13:54:12+08:00 200  ← Service restored
+```
+
+**Root Causes:**
+1. **No placement constraint:** When we call `service.scale(2)`, Docker Swarm scheduler places the new task wherever it wants. Since worker-3 already has capacity, Docker places both tasks there.
+2. **Old task shuts down prematurely:** Even though we didn't explicitly remove the old task, Docker Swarm shut it down when scaling from 1→2, causing downtime.
+
+**Fix Applied:**
+Add placement constraint **BEFORE** scaling up:
+
+**New Migration Flow:**
+1. Find old task ID on problem node (e.g., worker-3)
+2. **Add placement constraint `node.hostname!=worker-3`** via `service.update()`
+3. Wait 2s for constraint to apply
+4. Scale from 1→2 replicas (new task MUST go to different node due to constraint)
+5. Wait for new task to be "running"
+6. Verify new task is on different node
+7. Remove old task by ID
+8. Verify final state
+
+**Code Changes:** [docker_controller.py:75-110](../swarmguard/recovery-manager/docker_controller.py#L75-L110)
+```python
+# Step 2: Add placement constraint to FORCE new task on different node
+task_template = spec.get('TaskTemplate', {})
+placement = task_template.get('Placement', {})
+current_constraints = placement.get('Constraints', [])
+
+# Remove any previous migration constraints
+base_constraints = [c for c in current_constraints if 'node.hostname!=' not in c]
+
+# Add new constraint to avoid problem node
+new_constraints = base_constraints + [f'node.hostname!={from_node}']
+
+# Update service with new constraint
+service.update(
+    image=current_image,
+    constraints=new_constraints
+)
+
+# Wait for update to apply
+time.sleep(2)
+
+# Step 3: NOW scale up (new task will be on different node)
+service.scale(new_replicas)
+```
+
+**Expected Result:**
+- New task placed on worker-1, worker-2, or worker-4 (NOT worker-3)
+- Zero downtime (2 replicas exist during migration)
+- MTTR < 10 seconds
+
+**Status:** ✅ FIXED - Ready to rebuild and test
+
+---
+
 ## Current Blockers
 
 ### Blocker 1: Scenario 1 Migration → ✅ SOLVED
