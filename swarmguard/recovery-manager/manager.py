@@ -55,9 +55,19 @@ class RecoveryManager:
 
             current_time = int(time.time())
             if service_name in self.cooldowns:
-                # Migration needs longer cooldown (60s) to prevent rapid re-migrations
-                # Scale-up can be more frequent (30s) for traffic spikes
-                cooldown_period = 60 if scenario == 'scenario1_migration' else 30
+                # Different cooldown periods for different scenarios:
+                # - Migration: 60s (prevent rapid re-migrations)
+                # - Scale-up: 60s (PRD requirement: scale_up_cooldown)
+                # - Scale-down: 180s (PRD requirement: scale_down_cooldown, must be conservative)
+                if scenario == 'scenario1_migration':
+                    cooldown_period = 60
+                elif scenario == 'scenario2_scale_up' or scenario == 'scenario2_scaling':
+                    cooldown_period = self.config.get('scenarios.scenario2_scaling.scale_up_cooldown', 60)
+                elif scenario == 'scenario2_scale_down':
+                    cooldown_period = self.config.get('scenarios.scenario2_scaling.scale_down_cooldown', 180)
+                else:
+                    cooldown_period = 30  # Default
+
                 time_since_last = current_time - self.cooldowns[service_name]
                 if time_since_last < cooldown_period:
                     logger.info(f"Cooldown active for {service_name}: {time_since_last}s < {cooldown_period}s")
@@ -66,7 +76,12 @@ class RecoveryManager:
             with self.lock:
                 if scenario == 'scenario1_migration':
                     result = self.execute_migration(service_name, container_id, node, alert_data)
+                elif scenario == 'scenario2_scale_up':
+                    result = self.execute_scale_up(service_name, alert_data)
+                elif scenario == 'scenario2_scale_down':
+                    result = self.execute_scale_down(service_name, alert_data)
                 elif scenario == 'scenario2_scaling':
+                    # Legacy support for old scenario name (defaults to scale-up)
                     result = self.execute_scale_up(service_name, alert_data)
                 else:
                     return {'status': 'error', 'message': 'Unknown scenario'}
@@ -112,6 +127,15 @@ class RecoveryManager:
         except Exception as e:
             logger.error(f"Scale-up failed for {service_name}: {e}")
             return {'status': 'error', 'action': 'scale_up', 'message': str(e)}
+
+    def execute_scale_down(self, service_name: str, alert_data: dict) -> dict:
+        logger.info(f"Executing scale-down for {service_name}")
+        try:
+            result = self.docker_controller.scale_down(service_name)
+            return {'status': 'success', 'action': 'scale_down', 'service': service_name, 'result': result}
+        except Exception as e:
+            logger.error(f"Scale-down failed for {service_name}: {e}")
+            return {'status': 'error', 'action': 'scale_down', 'message': str(e)}
 
 
 recovery_manager = None
