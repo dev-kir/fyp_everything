@@ -763,6 +763,38 @@ while time < 40s:
 - Logs show "ZERO DOWNTIME: Both old and new tasks running simultaneously"
 - Health checks show NO "000DOWN" entries
 
+**Status:** ❌ FAILED - `force_update=True` not accepted by low-level API
+
+**Error:**
+```
+ServiceApiMixin.update_service() got an unexpected keyword argument 'force_update'
+```
+
+**Root Cause:** The low-level API `api.update_service()` does NOT accept `force_update` as a parameter. This is a kwarg for the high-level API only.
+
+**Fix:** Use `ForceUpdate` counter in `TaskTemplate` spec:
+```python
+if 'ForceUpdate' not in task_template:
+    task_template['ForceUpdate'] = 0
+task_template['ForceUpdate'] += 1  # Increment to force recreation
+```
+
+---
+
+### Attempt 17: Fix force_update Parameter Error
+**Issue:** Attempt 16 failed with "got an unexpected keyword argument 'force_update'"
+**Root Cause:** Low-level API uses `ForceUpdate` field in TaskTemplate, NOT `force_update` kwarg
+
+**Fix Applied:**
+- Lines 103-106 in docker_controller.py
+- Increment `task_template['ForceUpdate']` counter before calling `api.update_service()`
+- Remove `force_update=True` parameter from API call
+
+**Expected Result:**
+- API call succeeds without parameter error
+- Rolling update triggered with START-FIRST ordering
+- Zero downtime achieved (both tasks running during transition)
+
 **Status:** ✅ FIXED - Ready to rebuild and test
 
 ---

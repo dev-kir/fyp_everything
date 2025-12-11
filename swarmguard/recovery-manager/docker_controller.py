@@ -100,6 +100,11 @@ class DockerController:
             }
 
             # Use low-level API to set update config properly
+            # Force update by setting ForceUpdate counter in TaskTemplate
+            if 'ForceUpdate' not in task_template:
+                task_template['ForceUpdate'] = 0
+            task_template['ForceUpdate'] += 1  # Increment to force recreation
+
             try:
                 version = service.version
                 self.client.api.update_service(
@@ -111,8 +116,7 @@ class DockerController:
                     labels=spec.get('Labels', {}),
                     networks=spec.get('Networks'),
                     endpoint_spec=spec.get('EndpointSpec'),
-                    update_config=update_config,
-                    force_update=True  # Force new task deployment
+                    update_config=update_config
                 )
                 logger.info(f"Step 3: Rolling update with START-FIRST initiated - new task will start before old stops")
             except Exception as e:
