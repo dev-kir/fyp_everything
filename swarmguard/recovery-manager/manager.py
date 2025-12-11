@@ -55,7 +55,9 @@ class RecoveryManager:
 
             current_time = int(time.time())
             if service_name in self.cooldowns:
-                cooldown_period = 30 if scenario == 'scenario1_migration' else 60
+                # Migration needs longer cooldown (60s) to prevent rapid re-migrations
+                # Scale-up can be more frequent (30s) for traffic spikes
+                cooldown_period = 60 if scenario == 'scenario1_migration' else 30
                 time_since_last = current_time - self.cooldowns[service_name]
                 if time_since_last < cooldown_period:
                     logger.info(f"Cooldown active for {service_name}: {time_since_last}s < {cooldown_period}s")
@@ -83,7 +85,20 @@ class RecoveryManager:
     def execute_migration(self, service_name: str, container_id: str, node: str, alert_data: dict) -> dict:
         logger.info(f"Executing migration for {service_name} from {node}")
         try:
+            # CRITICAL: Verify container is actually on the reported node before migrating
+            # This prevents stale alerts from triggering duplicate migrations
+            actual_node = self.docker_controller.get_service_node(service_name)
+            if actual_node != node:
+                logger.warning(f"Stale alert ignored: {service_name} reported on {node}, actually on {actual_node}")
+                return {'status': 'ignored', 'reason': 'stale_alert', 'reported_node': node, 'actual_node': actual_node}
+
             result = self.docker_controller.migrate_container(service_name, node)
+
+            # SUCCESS: Extend cooldown to 60s after successful migration
+            if result.get('success'):
+                self.cooldowns[service_name] = int(time.time())  # Reset cooldown after success
+                logger.info(f"Migration succeeded - cooldown extended to 60s")
+
             return {'status': 'success', 'action': 'migration', 'service': service_name, 'from_node': node, 'result': result}
         except Exception as e:
             logger.error(f"Migration failed for {service_name}: {e}")

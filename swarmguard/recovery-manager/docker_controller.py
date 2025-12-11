@@ -16,6 +16,27 @@ class DockerController:
         self.client = docker.DockerClient(base_url=socket_path)
         logger.info("Docker client initialized")
 
+    def get_service_node(self, service_name: str) -> str:
+        """Get the current node where the service's task is running"""
+        try:
+            service = self.client.services.get(service_name)
+            tasks = service.tasks(filters={'desired-state': 'running'})
+
+            for task in tasks:
+                task_state = task.get('Status', {}).get('State')
+                if task_state == 'running':
+                    node_id = task.get('NodeID')
+                    if node_id:
+                        node = self.client.nodes.get(node_id)
+                        hostname = node.attrs['Description']['Hostname']
+                        return hostname
+
+            logger.warning(f"No running tasks found for {service_name}")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting service node: {e}")
+            return None
+
     def migrate_container(self, service_name: str, from_node: str) -> dict:
         start_time = time.time()
         try:
@@ -39,14 +60,18 @@ class DockerController:
                 current_constraints = placement['Constraints']
 
             # Build new constraint list
+            # Keep only the base constraints (role and master exclusion)
+            # Remove ALL previous migration constraints (node.hostname != ...)
             new_constraints = []
             for c in current_constraints:
-                # Keep constraints that don't conflict with our new constraint
-                if f'node.hostname != {from_node}' not in c and f'node.hostname!={from_node}' not in c:
+                # Keep base constraints only (not migration constraints)
+                if 'node.hostname !=' not in c and 'node.hostname!=' not in c:
                     new_constraints.append(c)
 
-            # Add constraint to exclude problem node
+            # Add NEW constraint to exclude current problem node ONLY
             new_constraints.append(f'node.hostname != {from_node}')
+
+            logger.info(f"Removed {len(current_constraints) - len(new_constraints) + 1} old migration constraints")
 
             logger.info(f"New placement constraints: {new_constraints}")
 
