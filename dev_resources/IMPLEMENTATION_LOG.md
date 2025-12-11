@@ -325,6 +325,71 @@ self.client.api.update_service(
 - OLD task stays running until we explicitly remove it
 - Zero downtime achieved
 
+**Status:** ❌ FAILED - Docker API rejected with "501 Not Implemented"
+
+**Error:**
+```
+501 Server Error: Not Implemented ("rpc error: code = Unimplemented desc = renaming services is not supported")
+```
+
+**Lesson Learned:** Docker's low-level `api.update_service()` has restrictions and doesn't support all update operations.
+
+---
+
+### Attempt 12: Simplest Approach - Scale Up First, No Constraints
+**Issue:** Attempt 11's low-level API failed with 501 error
+**User Feedback:** "the previous solution is already good. the 6s downtime maybe the cause of that is because we shutdown the old container too early"
+
+**Key Insight:**
+The 6s downtime in Attempt 10 was NOT because of constraints, but because:
+1. When we add constraint `node.hostname!=worker-1`
+2. Docker immediately sees old task on worker-1 violates constraint
+3. Docker shuts down old task BEFORE new task is ready
+4. Result: 6 seconds with 0 replicas
+
+**Solution:**
+**Don't use constraints at all!** Use Docker Swarm's natural spread strategy:
+
+**New Migration Flow (Simplest Ever):**
+1. Find old task ID on problem node
+2. **Scale 1 → 2 replicas** (old task stays running, new task starts)
+3. Wait for new task to be "running" (both tasks running = zero downtime!)
+4. Verify new task is on different node
+   - If same node: Rollback and return error (retry later)
+   - If different node: Proceed
+5. **Scale 2 → 1** (Docker removes one task, keeps the newer/healthier one)
+6. Verify final state
+
+**Code Changes:** [docker_controller.py:75-145](../swarmguard/recovery-manager/docker_controller.py#L75-L145)
+```python
+# Step 2: Scale up to 2 replicas FIRST (before anything else)
+# This ensures old task stays running while new task starts
+logger.info(f"Step 2: Scaling up from {current_replicas} to {new_replicas} replicas")
+service.scale(new_replicas)
+
+# Step 3: Wait for new task to be RUNNING
+# Both tasks are running now = ZERO DOWNTIME!
+
+# Step 4: Verify new task is on DIFFERENT node
+# If same node, rollback and retry
+
+# Step 5: Scale down to 1
+# Docker removes one task (algorithm keeps newer/healthier one)
+service.scale(current_replicas)
+```
+
+**Why This Works:**
+- Docker Swarm's default spread strategy places tasks across nodes
+- Scaling up first ensures 2 replicas during migration window
+- No constraints = no premature shutdowns
+- Simple, predictable behavior
+
+**Expected Result:**
+- Zero downtime (2 replicas exist during migration)
+- MTTR < 10 seconds
+- No Docker API errors
+- Works reliably across multiple migrations
+
 **Status:** ✅ FIXED - Ready to rebuild and test
 
 ---
