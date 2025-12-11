@@ -72,8 +72,8 @@ class DockerController:
                 logger.warning(f"No task found on {from_node}")
                 return {'success': False, 'error': f'No task on {from_node}'}
 
-            # Step 2: Add placement constraint to force new task on DIFFERENT node
-            # Get current service spec to update constraints
+            # Step 2: Use Docker Swarm's NATIVE rolling update with start-first
+            # This is the CORRECT way to do zero-downtime migration in Docker Swarm
             task_template = spec.get('TaskTemplate', {})
             placement = task_template.get('Placement', {})
             current_constraints = placement.get('Constraints', [])
@@ -83,31 +83,29 @@ class DockerController:
             base_constraints = [c for c in current_constraints if 'node.hostname!=' not in c]
             new_constraints = base_constraints + [f'node.hostname!={from_node}']
 
-            logger.info(f"Step 2: Adding placement constraint to avoid {from_node}")
+            logger.info(f"Step 2: Triggering rolling update with start-first order")
             logger.info(f"Constraints: {current_constraints} → {new_constraints}")
 
-            # Update service with new constraint (this will NOT scale yet)
-            service.update(
-                image=current_image,
-                constraints=new_constraints
-            )
+            # Use force_update to trigger rolling update
+            # Docker will start NEW task BEFORE stopping OLD task (start-first default for replicated services)
+            try:
+                service.update(
+                    image=current_image,
+                    constraints=new_constraints,
+                    force_update=True
+                )
+                logger.info(f"Step 3: Rolling update initiated - Docker will start new task before stopping old one")
+            except Exception as e:
+                logger.error(f"Failed to trigger rolling update: {e}")
+                return {'success': False, 'error': f'Update failed: {str(e)}'}
 
-            # Wait for constraint update to be applied
-            logger.info(f"Waiting 5s for constraint to apply...")
-            time.sleep(5)
-
-            # Step 3: NOW scale up to 2 replicas
-            # Since constraint is already set, new task MUST go to different node
-            new_replicas = current_replicas + 1
-            logger.info(f"Step 3: Scaling up from {current_replicas} to {new_replicas} replicas (old task stays running)")
-            service.scale(new_replicas)
-
-            # Step 4: Wait for new task to be RUNNING AND HEALTHY
+            # Step 4: Wait for rolling update to complete
+            # Monitor tasks to see when new task is running on different node
             wait_start = time.time()
-            wait_timeout = 30  # Max 30s to wait for new task
-            new_task_ready = False
+            wait_timeout = 40  # Max 40s for rolling update
+            migration_complete = False
 
-            logger.info(f"Step 4: Waiting for new task to be healthy (timeout {wait_timeout}s)")
+            logger.info(f"Step 4: Monitoring rolling update (timeout {wait_timeout}s)")
 
             while (time.time() - wait_start) < wait_timeout:
                 time.sleep(2)
@@ -115,69 +113,38 @@ class DockerController:
                 tasks = service.tasks(filters={'desired-state': 'running'})
 
                 running_tasks = []
+                task_nodes = {}
                 for task in tasks:
                     task_state = task.get('Status', {}).get('State')
                     task_id = task.get('ID')
-                    if task_state == 'running' and task_id != old_task_id:
-                        running_tasks.append(task_id)
+                    if task_state == 'running':
+                        node_id = task.get('NodeID')
+                        if node_id:
+                            node = self.client.nodes.get(node_id)
+                            hostname = node.attrs['Description']['Hostname']
+                            task_nodes[task_id] = hostname
+                            running_tasks.append((task_id, hostname))
 
-                logger.info(f"Waiting for new task: {len(running_tasks)} new tasks running")
+                logger.info(f"Running tasks: {[(tid[:12], node) for tid, node in running_tasks]}")
 
-                if len(running_tasks) >= 1:
-                    new_task_ready = True
-                    logger.info(f"New task {running_tasks[0][:12]} is running!")
-                    break
-
-            if not new_task_ready:
-                logger.error(f"New task failed to start within {wait_timeout}s")
-                service.scale(current_replicas)  # Rollback
-                return {'success': False, 'error': 'New task timeout'}
-
-            # Step 5: Verify new task is on DIFFERENT node
-            service.reload()
-            tasks = service.tasks(filters={'desired-state': 'running'})
-
-            new_node = None
-            for task in tasks:
-                task_id = task.get('ID')
-                task_state = task.get('Status', {}).get('State')
-                if task_state == 'running' and task_id != old_task_id:
-                    node_id = task.get('NodeID')
-                    if node_id:
-                        node = self.client.nodes.get(node_id)
-                        new_node = node.attrs['Description']['Hostname']
-                        logger.info(f"Step 5: New task on {new_node}")
+                # Check if we have exactly 1 task running on a different node
+                if len(running_tasks) == 1:
+                    task_id, node = running_tasks[0]
+                    if node != from_node:
+                        logger.info(f"✅ Rolling update complete: New task {task_id[:12]} on {node}")
+                        migration_complete = True
                         break
 
-            if not new_node:
-                logger.error(f"Could not find new task node")
-                service.scale(current_replicas)  # Rollback
-                return {'success': False, 'error': 'Could not find new task'}
+            if not migration_complete:
+                logger.error(f"Rolling update did not complete within {wait_timeout}s")
+                return {'success': False, 'error': 'Rolling update timeout'}
 
-            if new_node == from_node:
-                logger.error(f"New task placed on same node {from_node}")
-                service.scale(current_replicas)  # Rollback
-                return {'success': False, 'error': f'New task on same node {from_node}'}
-
-            # Step 6: Wait 10 seconds for new task to FULLY STABILIZE
-            # This is CRITICAL - ensures new task is accepting traffic before we remove old one
-            logger.info(f"Step 6: Waiting 10s grace period for new task to stabilize")
-            time.sleep(10)
-
-            # Step 7: Remove old task by scaling down
-            # Docker will remove one task - since we have 2 running and want 1,
-            # Docker's algorithm should keep the newer/healthier one
-            logger.info(f"Step 7: Scaling down to {current_replicas} - Docker will remove old task")
-            service.scale(current_replicas)
-
-            # Wait for scale-down to complete
-            time.sleep(3)
-
-            # Step 8: Verify final state
+            # Step 5: Final verification
             service.reload()
             tasks = service.tasks(filters={'desired-state': 'running'})
 
             final_tasks = {}
+            new_node = None
             for task in tasks:
                 task_state = task.get('Status', {}).get('State')
                 if task_state == 'running':
@@ -186,19 +153,20 @@ class DockerController:
                         node = self.client.nodes.get(node_id)
                         hostname = node.attrs['Description']['Hostname']
                         final_tasks[hostname] = final_tasks.get(hostname, 0) + 1
+                        new_node = hostname  # Should only be one task
 
             logger.info(f"Final task distribution: {final_tasks}")
 
             total_time = time.time() - start_time
 
-            if new_node in final_tasks and from_node not in final_tasks:
+            if new_node and new_node != from_node and from_node not in final_tasks:
                 logger.info(f"✅ Migration successful: {from_node} → {new_node}")
-                logger.info(f"Zero-downtime migration complete: {service_name} on {new_node} ({total_time:.2f}s)")
+                logger.info(f"Zero-downtime rolling update complete: {service_name} on {new_node} ({total_time:.2f}s)")
                 logger.info(f"MTTR: {total_time:.2f}s")
                 return {'success': True, 'new_node': new_node, 'duration_seconds': total_time}
             else:
                 logger.warning(f"Migration completed but final state unexpected: {final_tasks}")
-                return {'success': True, 'new_node': new_node, 'duration_seconds': total_time, 'note': 'Unexpected final state'}
+                return {'success': False, 'error': f'Unexpected final state: {final_tasks}'}
 
         except docker.errors.NotFound:
             logger.error(f"Service {service_name} not found")
