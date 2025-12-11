@@ -87,22 +87,34 @@ class DockerController:
             new_constraints = base_constraints + [f'node.hostname!={from_node}']
             logger.info(f"Constraints: {current_constraints} → {new_constraints}")
 
-            # Get current image
-            container_spec = task_template.get('ContainerSpec', {})
-            current_image = container_spec.get('Image', '')
-
-            # Update service with new constraint (but keep replicas at 1 for now)
+            # Update service spec directly without triggering rolling update
+            # This prevents Docker from recreating the existing task
             logger.info(f"Updating service with constraint node.hostname!={from_node}")
-            service.update(
-                image=current_image,
-                constraints=new_constraints
-            )
 
-            # Wait for update to apply
-            time.sleep(2)
+            # Modify the spec in-place
+            if 'Placement' not in spec['TaskTemplate']:
+                spec['TaskTemplate']['Placement'] = {}
+            spec['TaskTemplate']['Placement']['Constraints'] = new_constraints
+
+            # Update service spec via low-level API (version is required)
+            version = service.version
+            try:
+                self.client.api.update_service(
+                    service.id,
+                    version=version,
+                    task_template=spec['TaskTemplate'],
+                    mode=spec.get('Mode'),
+                    networks=spec.get('Networks'),
+                    endpoint_spec=spec.get('EndpointSpec')
+                )
+                logger.info(f"Constraint applied via API - {len(new_constraints)} total constraints")
+            except Exception as e:
+                logger.error(f"Failed to update service spec: {e}")
+                return {'success': False, 'error': f'Constraint update failed: {e}'}
+
+            # Wait for spec update to propagate
+            time.sleep(1)
             service.reload()
-
-            logger.info(f"Constraint applied - {len(new_constraints)} total constraints")
 
             # Step 3: Scale up to 2 replicas (new task will be on different node due to constraint)
             new_replicas = current_replicas + 1

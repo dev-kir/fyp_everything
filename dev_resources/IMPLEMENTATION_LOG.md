@@ -253,6 +253,78 @@ service.scale(new_replicas)
 - Zero downtime (2 replicas exist during migration)
 - MTTR < 10 seconds
 
+**Status:** ✅ FIXED - Tested, migrations working!
+
+**Test Results:**
+```
+Migration 1: worker-3 → worker-1 (MTTR: 11.11s) ✅
+Migration 2: worker-1 → worker-4 (MTTR: 11.08s) ✅
+```
+
+**New Issue Found:** 6 seconds downtime during migration
+
+---
+
+### Attempt 11: Fix Downtime Caused by Constraint Update Triggering Rolling Update
+**Issue:** 6 seconds of downtime during migration (14:30:36 → 14:30:42)
+
+**Evidence from health checks:**
+```
+2025-12-11T14:30:36+08:00 200  ← Last success
+2025-12-11T14:30:36+08:00 000DOWN  ← 6 seconds downtime
+2025-12-11T14:30:42+08:00 200  ← Service restored
+```
+
+**Evidence from logs:**
+```
+06:30:35 - Step 2: Adding placement constraint to avoid worker-1
+06:30:35 - Constraints: [...'worker-3'] → [...'worker-1']
+06:30:35 - Updating service with constraint node.hostname!=worker-1
+06:30:37 - Constraint applied - 2 total constraints
+06:30:37 - Step 3: Scaling up from 1 to 2 replicas
+06:30:39 - Waiting for new task: 0 new tasks running
+06:30:41 - Waiting for new task: 0 new tasks running
+06:30:43 - Waiting for new task: 1 new tasks running  ← 6 seconds delay!
+```
+
+**Root Cause:**
+When we call `service.update(image=..., constraints=...)`, Docker Swarm treats this as a **rolling update** and immediately:
+1. Checks if existing task violates new constraint
+2. Task on worker-1 now violates `node.hostname!=worker-1`
+3. **Shuts down the old task immediately** (causing downtime)
+4. Starts new task on different node (worker-4)
+5. 6 seconds gap while new task starts and becomes healthy
+
+**Fix Applied:**
+Use Docker's **low-level API** to update service spec WITHOUT triggering rolling update:
+
+**Code Changes:** [docker_controller.py:90-117](../swarmguard/recovery-manager/docker_controller.py#L90-L117)
+```python
+# Update service spec directly without triggering rolling update
+spec['TaskTemplate']['Placement']['Constraints'] = new_constraints
+
+# Update via low-level API (doesn't recreate tasks)
+version = service.version
+self.client.api.update_service(
+    service.id,
+    version=version,
+    task_template=spec['TaskTemplate'],
+    mode=spec.get('Mode'),
+    networks=spec.get('Networks'),
+    endpoint_spec=spec.get('EndpointSpec')
+)
+```
+
+**Key Difference:**
+- `service.update(constraints=...)` → Triggers rolling update (recreates tasks)
+- `api.update_service(task_template=...)` → Updates spec only (no task recreation)
+
+**Expected Result:**
+- Constraint updates instantly without touching existing task
+- When we scale 1→2, NEW task follows constraint
+- OLD task stays running until we explicitly remove it
+- Zero downtime achieved
+
 **Status:** ✅ FIXED - Ready to rebuild and test
 
 ---
