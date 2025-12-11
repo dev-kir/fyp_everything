@@ -72,39 +72,42 @@ class DockerController:
                 logger.warning(f"No task found on {from_node}")
                 return {'success': False, 'error': f'No task on {from_node}'}
 
-            # Step 2: Add placement constraint AND scale up together
-            # Get current constraints
+            # Step 2: Add placement constraint to force new task on DIFFERENT node
+            # Get current service spec to update constraints
             task_template = spec.get('TaskTemplate', {})
             placement = task_template.get('Placement', {})
             current_constraints = placement.get('Constraints', [])
+            current_image = spec['TaskTemplate']['ContainerSpec']['Image']
 
-            # Remove any previous migration constraints (from old migrations)
+            # Remove any previous migration constraints, keep only base constraints
             base_constraints = [c for c in current_constraints if 'node.hostname!=' not in c]
-
-            # Add new constraint to avoid problem node
             new_constraints = base_constraints + [f'node.hostname!={from_node}']
-            logger.info(f"Step 2: Adding constraint {new_constraints} AND scaling to 2 replicas")
 
-            # Get current image
-            container_spec = task_template.get('ContainerSpec', {})
-            current_image = container_spec.get('Image', '')
+            logger.info(f"Step 2: Adding placement constraint to avoid {from_node}")
+            logger.info(f"Constraints: {current_constraints} → {new_constraints}")
 
-            # Update service with new constraint AND scale up in same operation
-            new_replicas = current_replicas + 1
+            # Update service with new constraint (this will NOT scale yet)
             service.update(
                 image=current_image,
                 constraints=new_constraints
             )
+
+            # Wait for constraint update to be applied
+            logger.info(f"Waiting 5s for constraint to apply...")
+            time.sleep(5)
+
+            # Step 3: NOW scale up to 2 replicas
+            # Since constraint is already set, new task MUST go to different node
+            new_replicas = current_replicas + 1
+            logger.info(f"Step 3: Scaling up from {current_replicas} to {new_replicas} replicas (old task stays running)")
             service.scale(new_replicas)
 
-            logger.info(f"Constraint applied and scaling to {new_replicas} replicas")
-
-            # Step 3: Wait for new task to be RUNNING AND HEALTHY
+            # Step 4: Wait for new task to be RUNNING AND HEALTHY
             wait_start = time.time()
             wait_timeout = 30  # Max 30s to wait for new task
             new_task_ready = False
 
-            logger.info(f"Step 3: Waiting for new task to be healthy (timeout {wait_timeout}s)")
+            logger.info(f"Step 4: Waiting for new task to be healthy (timeout {wait_timeout}s)")
 
             while (time.time() - wait_start) < wait_timeout:
                 time.sleep(2)
@@ -130,7 +133,7 @@ class DockerController:
                 service.scale(current_replicas)  # Rollback
                 return {'success': False, 'error': 'New task timeout'}
 
-            # Step 4: Verify new task is on DIFFERENT node
+            # Step 5: Verify new task is on DIFFERENT node
             service.reload()
             tasks = service.tasks(filters={'desired-state': 'running'})
 
@@ -143,7 +146,7 @@ class DockerController:
                     if node_id:
                         node = self.client.nodes.get(node_id)
                         new_node = node.attrs['Description']['Hostname']
-                        logger.info(f"New task on {new_node}")
+                        logger.info(f"Step 5: New task on {new_node}")
                         break
 
             if not new_node:
@@ -156,21 +159,21 @@ class DockerController:
                 service.scale(current_replicas)  # Rollback
                 return {'success': False, 'error': f'New task on same node {from_node}'}
 
-            # Step 5: Wait 10 seconds for new task to stabilize
-            # This ensures new task is fully ready before we remove old one
-            logger.info(f"Step 5: Waiting 10s grace period for new task to stabilize")
+            # Step 6: Wait 10 seconds for new task to FULLY STABILIZE
+            # This is CRITICAL - ensures new task is accepting traffic before we remove old one
+            logger.info(f"Step 6: Waiting 10s grace period for new task to stabilize")
             time.sleep(10)
 
-            # Step 6: Remove old task by scaling down
+            # Step 7: Remove old task by scaling down
             # Docker will remove one task - since we have 2 running and want 1,
             # Docker's algorithm should keep the newer/healthier one
-            logger.info(f"Step 6: Scaling down to {current_replicas} - Docker will remove old task")
+            logger.info(f"Step 7: Scaling down to {current_replicas} - Docker will remove old task")
             service.scale(current_replicas)
 
             # Wait for scale-down to complete
             time.sleep(3)
 
-            # Step 7: Verify final state
+            # Step 8: Verify final state
             service.reload()
             tasks = service.tasks(filters={'desired-state': 'running'})
 

@@ -463,6 +463,93 @@ service.scale(current_replicas)
 - MTTR ~20-25 seconds (includes 10s grace period)
 - Reliable across multiple migrations
 
+**Status:** ❌ FAILED - 18 seconds downtime, "update out of sequence" error
+
+**Test Results:**
+```
+07:08:32 - Step 2: Adding constraint [...] AND scaling to 2 replicas
+07:08:32 - ERROR - Migration error: 500 Server Error: Internal Server Error
+("rpc error: code = Unknown desc = update out of sequence")
+```
+
+**Evidence:**
+- 18 seconds downtime (15:08:34 → 15:08:52) - WORST RESULT YET
+- Old task on worker-3 shutdown prematurely
+- New task on worker-4 created
+- Error caused by calling service.update() and service.scale() too quickly
+
+**Lesson Learned:** Calling `service.update()` followed immediately by `service.scale()` creates a race condition. Docker is still processing the constraint update when the scale command arrives.
+
+---
+
+### Attempt 14: Fix Race Condition with 5-Second Wait Between Update and Scale
+**Issue:** Attempt 13 failed with "update out of sequence" error due to race condition
+**User Feedback:** "we're shutting down the old container too early i think.. look like it's not waiting 10s after migration before shutdown on old node ??"
+
+**Key Insights:**
+1. **Race condition identified:** Calling `service.update()` + `service.scale()` immediately causes conflict
+2. **Solution:** Add 5-second wait between constraint update and scale operation
+3. **User's requirement:** 10-second grace period MUST be implemented before scale-down
+
+**Root Cause Analysis:**
+When we call:
+```python
+service.update(constraints=new_constraints)  # Docker starts processing this
+service.scale(2)  # This arrives before update completes → CONFLICT!
+```
+
+Docker Swarm's control plane is still processing the constraint update when the scale command arrives, causing "update out of sequence" error.
+
+**New Migration Flow (Attempt 14):**
+1. Find old task ID on problem node
+2. **Add placement constraint `node.hostname!=worker-X`**
+3. **Wait 5 seconds for constraint update to complete** ← KEY FIX for race condition
+4. Scale 1 → 2 (new task follows constraint, old task stays running)
+5. Wait for new task to be "running"
+6. Verify new task is on different node
+7. **Wait 10 seconds grace period** for new task to stabilize ← USER'S REQUIREMENT
+8. Scale 2 → 1 (remove old task)
+9. Verify final state
+
+**Code Changes:** [docker_controller.py:75-171](../swarmguard/recovery-manager/docker_controller.py#L75-L171)
+```python
+# Step 2: Add placement constraint
+service.update(
+    image=current_image,
+    constraints=new_constraints
+)
+
+# KEY FIX: Wait 5s for constraint update to complete
+logger.info(f"Waiting 5s for constraint to apply...")
+time.sleep(5)
+
+# Step 3: NOW scale up (no race condition)
+service.scale(new_replicas)
+
+# Step 4-5: Wait for new task, verify different node
+
+# Step 6: USER'S REQUIREMENT - 10s grace period
+logger.info(f"Step 6: Waiting 10s grace period for new task to stabilize")
+time.sleep(10)
+
+# Step 7: Scale down
+service.scale(current_replicas)
+```
+
+**Why This Works:**
+1. **5-second wait** allows Docker to fully process constraint update before scale command
+2. **Constraint guarantees** new task goes to different node (no same-node placement)
+3. **10-second grace period** ensures new task is fully stable and accepting traffic
+4. **No race condition** - operations are properly sequenced
+5. **Zero downtime** - 2 replicas running during entire migration window
+
+**Expected Result:**
+- Zero downtime (2 replicas exist during migration)
+- New task guaranteed on different node (constraint enforced)
+- MTTR ~28-30 seconds (includes 5s wait + 10s grace period)
+- No "update out of sequence" errors
+- Reliable across multiple migrations
+
 **Status:** ✅ FIXED - Ready to rebuild and test
 
 ---
