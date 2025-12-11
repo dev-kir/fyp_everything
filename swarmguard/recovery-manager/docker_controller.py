@@ -245,3 +245,38 @@ class DockerController:
         except Exception as e:
             logger.error(f"Scale-up error: {e}")
             return {'success': False, 'error': str(e)}
+
+    def scale_down(self, service_name: str) -> dict:
+        """
+        Scale down service by ONE replica (Scenario 2: Autoscaling)
+        Uses Docker Swarm's rolling scale-down to maintain zero downtime
+        """
+        start_time = time.time()
+        try:
+            service = self.client.services.get(service_name)
+            spec = service.attrs['Spec']
+            current_replicas = spec.get('Mode', {}).get('Replicated', {}).get('Replicas', 1)
+            min_replicas = self.config.get('scenarios.scenario2_scaling.scaling.min_replicas', 1)
+
+            if current_replicas <= min_replicas:
+                logger.warning(f"{service_name} already at min replicas ({min_replicas})")
+                return {'success': False, 'error': f'Already at min replicas ({min_replicas})'}
+
+            new_replicas = current_replicas - 1
+            logger.info(f"Scaling {service_name} from {current_replicas} to {new_replicas} replicas")
+
+            # Docker Swarm handles rolling scale-down automatically
+            # It removes tasks one at a time while maintaining the remaining replicas
+            service.scale(new_replicas)
+
+            total_time = time.time() - start_time
+            logger.info(f"Scale-down successful: {service_name} scaled to {new_replicas} ({total_time:.2f}s)")
+
+            return {'success': True, 'previous_replicas': current_replicas, 'new_replicas': new_replicas, 'duration_seconds': total_time}
+
+        except docker.errors.NotFound:
+            logger.error(f"Service {service_name} not found")
+            return {'success': False, 'error': 'Service not found'}
+        except Exception as e:
+            logger.error(f"Scale-down error: {e}")
+            return {'success': False, 'error': str(e)}
