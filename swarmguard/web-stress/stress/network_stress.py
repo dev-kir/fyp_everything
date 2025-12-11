@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Network Stressor - Gradual network traffic generation"""
+"""Network Stressor - Generate HTTP traffic for measurable network load"""
 
 import time
 import logging
-import socket
-import os
+import requests
 from threading import Thread, Event, Lock
 
 logger = logging.getLogger(__name__)
@@ -18,22 +17,13 @@ class NetworkStressor:
         self.current_mbps = 0
         self.mbps_lock = Lock()
 
-    def generate_traffic(self, stop_event: Event):
-        """Worker thread that generates traffic based on self.current_mbps"""
-        # Try to find external gateway or use broadcast
-        try:
-            # Get default gateway or use broadcast address
-            # This ensures traffic goes through the network interface being monitored
-            target_ip = os.getenv('STRESS_TARGET_IP', '192.168.2.1')  # Default to gateway
-            target_port = 9999
-            logger.info(f"Network stress targeting {target_ip}:{target_port}")
-        except:
-            target_ip = '192.168.2.1'
-            target_port = 9999
+    def generate_http_traffic(self, stop_event: Event):
+        """Worker thread that generates HTTP traffic by uploading/downloading data"""
+        # Target self (web-stress container) to generate measurable network traffic
+        target_url = "http://127.0.0.1:8080/health"
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        chunk_size = 1024
-        data = b'X' * chunk_size
+        # Create payload for upload (1MB = generates ~8 Mbps per request if sent in 1 second)
+        chunk_size = 1024 * 1024  # 1MB payload
 
         while not stop_event.is_set():
             try:
@@ -41,18 +31,27 @@ class NetworkStressor:
                     target_mbps = self.current_mbps
 
                 if target_mbps > 0:
-                    bytes_per_second = (target_mbps * 1_000_000) / 8
-                    chunks_per_second = int(bytes_per_second / chunk_size)
-                    delay = 1.0 / chunks_per_second if chunks_per_second > 0 else 1.0
+                    # Calculate requests per second needed to achieve target bandwidth
+                    # 1MB payload = 8 Mbits, so for 70 Mbps we need ~9 requests/sec
+                    requests_per_second = max(1, target_mbps / 8)
+                    delay = 1.0 / requests_per_second
 
-                    sock.sendto(data, (target_ip, target_port))
+                    # Generate traffic by making HTTP request with large payload
+                    try:
+                        # POST with 1MB body generates upload traffic
+                        # Response generates download traffic
+                        data = b'X' * chunk_size
+                        response = requests.post(target_url, data=data, timeout=2)
+                    except:
+                        pass  # Ignore errors, just keep generating traffic
+
                     time.sleep(delay)
                 else:
-                    time.sleep(0.1)  # Sleep when rate is 0
+                    time.sleep(0.1)
+
             except Exception as e:
                 logger.error(f"Network stress error: {e}")
                 time.sleep(0.1)
-        sock.close()
 
     def start_stress(self, target_mbps: int, duration_seconds: int, ramp_seconds: int):
         self.stop()
@@ -60,11 +59,14 @@ class NetworkStressor:
         self.stop_event.clear()
 
         try:
-            # Start worker thread
-            worker = Thread(target=self.generate_traffic, args=(self.stop_event,))
-            worker.start()
-            self.workers.append(worker)
-            logger.info(f"Network stress worker started, ramping to {target_mbps}Mbps over {ramp_seconds}s")
+            # Start 3 worker threads for parallel traffic generation
+            num_workers = 3
+            for i in range(num_workers):
+                worker = Thread(target=self.generate_http_traffic, args=(self.stop_event,))
+                worker.start()
+                self.workers.append(worker)
+
+            logger.info(f"Network stress: {num_workers} workers started, ramping to {target_mbps}Mbps over {ramp_seconds}s")
 
             # Ramp up traffic gradually
             steps = max(1, ramp_seconds)
