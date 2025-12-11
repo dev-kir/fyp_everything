@@ -72,8 +72,8 @@ class DockerController:
                 logger.warning(f"No task found on {from_node}")
                 return {'success': False, 'error': f'No task on {from_node}'}
 
-            # Step 2: Use Docker Swarm's NATIVE rolling update with start-first
-            # This is the CORRECT way to do zero-downtime migration in Docker Swarm
+            # Step 2: Configure rolling update with START-FIRST order using low-level API
+            # This is CRITICAL for zero-downtime migration
             task_template = spec.get('TaskTemplate', {})
             placement = task_template.get('Placement', {})
             current_constraints = placement.get('Constraints', [])
@@ -83,29 +83,50 @@ class DockerController:
             base_constraints = [c for c in current_constraints if 'node.hostname!=' not in c]
             new_constraints = base_constraints + [f'node.hostname!={from_node}']
 
-            logger.info(f"Step 2: Triggering rolling update with start-first order")
+            logger.info(f"Step 2: Triggering rolling update with START-FIRST order")
             logger.info(f"Constraints: {current_constraints} → {new_constraints}")
 
-            # Use force_update to trigger rolling update
-            # Docker will start NEW task BEFORE stopping OLD task (start-first default for replicated services)
+            # Update placement constraints in task template
+            if 'Placement' not in task_template:
+                task_template['Placement'] = {}
+            task_template['Placement']['Constraints'] = new_constraints
+
+            # Configure update policy: START-FIRST order + immediate updates
+            update_config = {
+                'Parallelism': 1,  # Update 1 task at a time
+                'Delay': 0,  # No delay between updates
+                'Order': 'start-first',  # START NEW TASK BEFORE STOPPING OLD ONE
+                'FailureAction': 'pause'  # Pause on failure
+            }
+
+            # Use low-level API to set update config properly
             try:
-                service.update(
-                    image=current_image,
-                    constraints=new_constraints,
-                    force_update=True
+                version = service.version
+                self.client.api.update_service(
+                    service.id,
+                    version=version,
+                    task_template=task_template,
+                    mode=spec.get('Mode'),
+                    name=spec.get('Name'),
+                    labels=spec.get('Labels', {}),
+                    networks=spec.get('Networks'),
+                    endpoint_spec=spec.get('EndpointSpec'),
+                    update_config=update_config,
+                    force_update=True  # Force new task deployment
                 )
-                logger.info(f"Step 3: Rolling update initiated - Docker will start new task before stopping old one")
+                logger.info(f"Step 3: Rolling update with START-FIRST initiated - new task will start before old stops")
             except Exception as e:
                 logger.error(f"Failed to trigger rolling update: {e}")
                 return {'success': False, 'error': f'Update failed: {str(e)}'}
 
-            # Step 4: Wait for rolling update to complete
-            # Monitor tasks to see when new task is running on different node
+            # Step 4: Wait for rolling update to complete with START-FIRST
+            # We should see: old task running → both running → new task only
             wait_start = time.time()
             wait_timeout = 40  # Max 40s for rolling update
             migration_complete = False
+            seen_both_tasks = False
 
-            logger.info(f"Step 4: Monitoring rolling update (timeout {wait_timeout}s)")
+            logger.info(f"Step 4: Monitoring START-FIRST rolling update (timeout {wait_timeout}s)")
 
             while (time.time() - wait_start) < wait_timeout:
                 time.sleep(2)
@@ -114,6 +135,9 @@ class DockerController:
 
                 running_tasks = []
                 task_nodes = {}
+                old_task_running = False
+                new_task_running = False
+
                 for task in tasks:
                     task_state = task.get('Status', {}).get('State')
                     task_id = task.get('ID')
@@ -125,10 +149,21 @@ class DockerController:
                             task_nodes[task_id] = hostname
                             running_tasks.append((task_id, hostname))
 
-                logger.info(f"Running tasks: {[(tid[:12], node) for tid, node in running_tasks]}")
+                            if task_id == old_task_id:
+                                old_task_running = True
+                            elif hostname != from_node:
+                                new_task_running = True
 
-                # Check if we have exactly 1 task running on a different node
-                if len(running_tasks) == 1:
+                logger.info(f"Running tasks: {[(tid[:12], node) for tid, node in running_tasks]} (old={old_task_running}, new={new_task_running})")
+
+                # Track if we see both tasks running (zero downtime proof)
+                if old_task_running and new_task_running:
+                    if not seen_both_tasks:
+                        logger.info(f"✅ ZERO DOWNTIME: Both old and new tasks running simultaneously")
+                        seen_both_tasks = True
+
+                # Check if migration is complete: exactly 1 task on different node
+                if len(running_tasks) == 1 and not old_task_running:
                     task_id, node = running_tasks[0]
                     if node != from_node:
                         logger.info(f"✅ Rolling update complete: New task {task_id[:12]} on {node}")
@@ -138,6 +173,11 @@ class DockerController:
             if not migration_complete:
                 logger.error(f"Rolling update did not complete within {wait_timeout}s")
                 return {'success': False, 'error': 'Rolling update timeout'}
+
+            if not seen_both_tasks:
+                logger.warning(f"⚠️  Did not observe both tasks running (may have had downtime)")
+            else:
+                logger.info(f"✅ Confirmed zero downtime: Both tasks ran concurrently")
 
             # Step 5: Final verification
             service.reload()

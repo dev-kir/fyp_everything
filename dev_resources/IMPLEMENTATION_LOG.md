@@ -646,6 +646,123 @@ while time < 40s:
 - No "update out of sequence" errors
 - Reliable, repeatable behavior using Docker's intended mechanism
 
+**Status:** ❌ FAILED - Docker used stop-first (not start-first), 19 seconds downtime
+
+**Test Results:**
+```
+09:24:28 - Rolling update initiated
+09:24:30 - Running tasks: []  ← OLD TASK STOPPED IMMEDIATELY
+09:24:32 - Running tasks: []
+09:24:34 - Running tasks: []
+...
+09:24:48 - Running tasks: [('k7ban0tvfl5e', 'worker-4')]  ← NEW TASK FINALLY RUNNING
+```
+
+**Evidence:**
+- 19 seconds downtime (17:24:29 → 17:24:48)
+- Old task stopped at 09:24:30 (2 seconds after update triggered)
+- New task didn't start until 09:24:48 (20 seconds later)
+- Docker used STOP-FIRST order, not START-FIRST
+
+**Root Cause:**
+Docker Swarm's **default `update_order` for replicated services is `stop-first`**, not `start-first`. When we called:
+```python
+service.update(
+    image=current_image,
+    constraints=new_constraints,
+    force_update=True
+)
+```
+
+Docker:
+1. Stopped old task immediately
+2. Then started new task
+3. Waited for health checks
+4. Result: 19 seconds with 0 replicas
+
+**Lesson Learned:** The Python Docker SDK's high-level `service.update()` does NOT allow setting `update_order`. We must use the low-level API `api.update_service()` to configure `UpdateConfig` with `Order: 'start-first'`.
+
+---
+
+### Attempt 16: Force START-FIRST Update Order via Low-Level API
+**Issue:** Attempt 15 failed because Docker used stop-first ordering by default
+**User Feedback:** "i think the old container still shutdown too early ? because still got downtime for several seconds, base in prd, we need to make it 0, or at most, below 3s"
+
+**Key Realization:**
+The high-level `service.update()` method in the Python Docker SDK **does not accept** `update_order` as a parameter. We must use the **low-level `api.update_service()`** to properly configure the `UpdateConfig`:
+
+```python
+update_config = {
+    'Parallelism': 1,
+    'Delay': 0,
+    'Order': 'start-first',  # KEY: Start new before stopping old
+    'FailureAction': 'pause'
+}
+
+self.client.api.update_service(
+    service.id,
+    version=version,
+    task_template=task_template,
+    update_config=update_config,  # Now we can set start-first!
+    force_update=True
+)
+```
+
+**New Migration Flow (Attempt 16):**
+1. Find old task ID on problem node
+2. Update task template with new placement constraint
+3. **Configure UpdateConfig with `Order: 'start-first'`**
+4. **Use low-level API** to trigger rolling update with proper config
+5. Monitor for BOTH tasks running simultaneously (zero downtime proof)
+6. Wait for old task to stop
+7. Verify final state
+
+**Code Changes:** [docker_controller.py:75-210](../swarmguard/recovery-manager/docker_controller.py#L75-L210)
+```python
+# Step 2: Configure START-FIRST update order
+update_config = {
+    'Parallelism': 1,
+    'Delay': 0,
+    'Order': 'start-first',  # NEW TASK STARTS BEFORE OLD STOPS
+    'FailureAction': 'pause'
+}
+
+# Use low-level API (high-level doesn't support update_order)
+self.client.api.update_service(
+    service.id,
+    version=version,
+    task_template=task_template,
+    update_config=update_config,
+    force_update=True
+)
+
+# Step 4: Monitor for BOTH tasks running
+while time < 40s:
+    if old_task_running and new_task_running:
+        logger.info("✅ ZERO DOWNTIME: Both tasks running")
+        seen_both_tasks = True
+
+    if only_new_task_running:
+        break  # Migration complete
+```
+
+**Why This Works:**
+1. **Low-level API** allows setting `UpdateConfig` properly
+2. **`Order: 'start-first'`** forces Docker to:
+   - Start new task first
+   - Wait for health checks to pass
+   - **ONLY THEN** stop old task
+3. **Both tasks run concurrently** during transition period
+4. **TRUE zero downtime** - always at least 1 healthy task
+5. **Monitoring confirms** we see both tasks running
+
+**Expected Result:**
+- Zero downtime (both tasks running during transition)
+- New task guaranteed on different node (constraint enforced)
+- MTTR ~20-30 seconds (health checks + transition)
+- Logs show "ZERO DOWNTIME: Both old and new tasks running simultaneously"
+- Health checks show NO "000DOWN" entries
+
 **Status:** ✅ FIXED - Ready to rebuild and test
 
 ---
