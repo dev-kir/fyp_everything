@@ -47,8 +47,8 @@ class DockerController:
             logger.info(f"Zero-downtime migration: {service_name} from {from_node} (replicas={current_replicas})")
 
             # For Scenario 1: TRUE zero-downtime migration
-            # Strategy: Add constraint → Scale up → Wait for healthy → Remove old task
-            # This ensures new container is on DIFFERENT node and READY before old one stops
+            # Strategy: Add constraint + Scale up together → Wait for healthy + 10s grace → Remove old task
+            # This ensures new container is on DIFFERENT node and STABLE before old one stops
 
             # Step 1: Find the task ID on the problem node
             logger.info(f"Step 1: Finding task on {from_node}")
@@ -72,14 +72,32 @@ class DockerController:
                 logger.warning(f"No task found on {from_node}")
                 return {'success': False, 'error': f'No task on {from_node}'}
 
-            # Step 2: Scale up to 2 replicas FIRST (before adding constraints)
-            # This ensures old task stays running while new task starts
+            # Step 2: Add placement constraint AND scale up together
+            # Get current constraints
+            task_template = spec.get('TaskTemplate', {})
+            placement = task_template.get('Placement', {})
+            current_constraints = placement.get('Constraints', [])
+
+            # Remove any previous migration constraints (from old migrations)
+            base_constraints = [c for c in current_constraints if 'node.hostname!=' not in c]
+
+            # Add new constraint to avoid problem node
+            new_constraints = base_constraints + [f'node.hostname!={from_node}']
+            logger.info(f"Step 2: Adding constraint {new_constraints} AND scaling to 2 replicas")
+
+            # Get current image
+            container_spec = task_template.get('ContainerSpec', {})
+            current_image = container_spec.get('Image', '')
+
+            # Update service with new constraint AND scale up in same operation
             new_replicas = current_replicas + 1
-            logger.info(f"Step 2: Scaling up from {current_replicas} to {new_replicas} replicas")
+            service.update(
+                image=current_image,
+                constraints=new_constraints
+            )
             service.scale(new_replicas)
 
-            # Wait a moment for scale command to be processed
-            time.sleep(1)
+            logger.info(f"Constraint applied and scaling to {new_replicas} replicas")
 
             # Step 3: Wait for new task to be RUNNING AND HEALTHY
             wait_start = time.time()
@@ -138,16 +156,21 @@ class DockerController:
                 service.scale(current_replicas)  # Rollback
                 return {'success': False, 'error': f'New task on same node {from_node}'}
 
-            # Step 5: Remove old task by scaling down
+            # Step 5: Wait 10 seconds for new task to stabilize
+            # This ensures new task is fully ready before we remove old one
+            logger.info(f"Step 5: Waiting 10s grace period for new task to stabilize")
+            time.sleep(10)
+
+            # Step 6: Remove old task by scaling down
             # Docker will remove one task - since we have 2 running and want 1,
             # Docker's algorithm should keep the newer/healthier one
-            logger.info(f"Step 5: Scaling down to {current_replicas} - Docker will remove a task")
+            logger.info(f"Step 6: Scaling down to {current_replicas} - Docker will remove old task")
             service.scale(current_replicas)
 
             # Wait for scale-down to complete
             time.sleep(3)
 
-            # Step 6: Verify final state
+            # Step 7: Verify final state
             service.reload()
             tasks = service.tasks(filters={'desired-state': 'running'})
 

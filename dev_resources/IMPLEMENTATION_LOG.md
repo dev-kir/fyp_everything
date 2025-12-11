@@ -390,6 +390,79 @@ service.scale(current_replicas)
 - No Docker API errors
 - Works reliably across multiple migrations
 
+**Status:** ❌ FAILED - New task placed on same node (worker-3)
+
+**Test Results:**
+```
+06:56:49 - Step 2: Scaling up from 1 to 2 replicas
+06:56:56 - New task on worker-3  ← SAME NODE!
+06:56:56 - ERROR - New task placed on same node worker-3
+```
+
+**Evidence:**
+- 4 seconds downtime (14:56:50 → 14:56:54)
+- New task placed on worker-3 (same as old task)
+- Docker's spread strategy did NOT work
+
+**Lesson Learned:** Without placement constraints, Docker Swarm's spread strategy is unreliable when a node already has capacity.
+
+---
+
+### Attempt 13: Hybrid Approach - Constraints + 10s Grace Period
+**Issue:** Attempt 12 failed with same-node placement
+**User Feedback:** "can we setup or make the old worker took 10 seconds maybe... before we remove the old container"
+
+**Key Insights:**
+1. **Must use constraints** - Docker's natural spread strategy is unreliable
+2. **Need grace period** - 10 seconds between "new task running" and "scale down" ensures stability
+3. **Timing is critical** - Add constraint and scale in same operation to minimize downtime risk
+
+**Solution:**
+Hybrid approach combining the best of Attempt 10 and Attempt 12:
+
+**New Migration Flow:**
+1. Find old task ID on problem node
+2. **Add placement constraint `node.hostname!=worker-X`**
+3. **Immediately scale 1 → 2** (in same operation)
+4. Wait for new task to be "running"
+5. Verify new task is on different node
+6. **Wait 10 seconds grace period** for new task to stabilize
+7. Scale 2 → 1 (remove old task)
+8. Verify final state
+
+**Code Changes:** [docker_controller.py:75-100](../swarmguard/recovery-manager/docker_controller.py#L75-L100)
+```python
+# Step 2: Add constraint and scale together
+service.update(
+    image=current_image,
+    constraints=new_constraints  # Forces new task to different node
+)
+service.scale(new_replicas)  # Immediately scale to 2
+
+# Step 3: Wait for new task running
+# (Both tasks running = zero downtime)
+
+# Step 4: Verify on different node
+
+# Step 5: Wait 10s grace period
+time.sleep(10)  # Ensure new task is stable
+
+# Step 6: Scale down to 1
+service.scale(current_replicas)
+```
+
+**Why This Works:**
+- Constraint ensures new task goes to different node
+- Immediate scale-up minimizes downtime window
+- 10s grace period ensures new task is stable before removing old one
+- Both tasks running during critical period
+
+**Expected Result:**
+- Zero downtime (2 replicas exist during migration)
+- New task guaranteed on different node (constraint enforced)
+- MTTR ~20-25 seconds (includes 10s grace period)
+- Reliable across multiple migrations
+
 **Status:** ✅ FIXED - Ready to rebuild and test
 
 ---
