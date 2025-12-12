@@ -3,6 +3,7 @@
 
 import time
 import logging
+from threading import Thread
 from fastapi import FastAPI, BackgroundTasks
 import uvicorn
 
@@ -53,11 +54,19 @@ async def stress_network(bandwidth: int = 50, duration: int = 120, ramp: int = 3
 
 
 @app.get("/stress/combined")
-async def stress_combined(cpu: int = 80, memory: int = 1024, network: int = 50, duration: int = 120, ramp: int = 30, background_tasks: BackgroundTasks = BackgroundTasks()):
+async def stress_combined(cpu: int = 80, memory: int = 1024, network: int = 50, duration: int = 120, ramp: int = 30):
     logger.info(f"Combined stress: CPU={cpu}%, MEM={memory}MB, NET={network}Mbps, duration={duration}s, ramp={ramp}s")
-    background_tasks.add_task(cpu_stressor.start_stress, cpu, duration, ramp)
-    background_tasks.add_task(memory_stressor.start_stress, memory, duration, ramp)
-    background_tasks.add_task(network_stressor.start_stress, network, duration, ramp)
+
+    # Run all stressors in PARALLEL using threads (not sequential background tasks!)
+    cpu_thread = Thread(target=cpu_stressor.start_stress, args=(cpu, duration, ramp), daemon=True)
+    memory_thread = Thread(target=memory_stressor.start_stress, args=(memory, duration, ramp), daemon=True)
+    network_thread = Thread(target=network_stressor.start_stress, args=(network, duration, ramp), daemon=True)
+
+    cpu_thread.start()
+    memory_thread.start()
+    network_thread.start()
+
+    logger.info("All 3 stressors started in parallel")
     return {"status": "started", "type": "combined", "targets": {"cpu_percent": cpu, "memory_mb": memory, "network_mbps": network}, "duration_seconds": duration, "ramp_seconds": ramp}
 
 
