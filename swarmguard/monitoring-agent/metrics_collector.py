@@ -4,6 +4,7 @@
 import os
 import time
 import logging
+import asyncio
 from typing import Dict
 import docker
 import psutil
@@ -27,10 +28,12 @@ class MetricsCollector:
         container_metrics = []
 
         try:
-            containers = self.docker_client.containers.list()
+            # Run blocking Docker API call in thread to avoid blocking event loop
+            containers = await asyncio.to_thread(self.docker_client.containers.list)
             for container in containers:
                 try:
-                    metrics = self.get_container_metrics(container, time_delta)
+                    # Run blocking container.stats() in thread
+                    metrics = await asyncio.to_thread(self.get_container_metrics, container, time_delta)
                     if metrics:
                         container_metrics.append(metrics)
                 except Exception as e:
