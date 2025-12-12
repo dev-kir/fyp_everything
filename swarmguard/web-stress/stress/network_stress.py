@@ -19,8 +19,9 @@ class NetworkStressor:
 
     def generate_http_traffic(self, stop_event: Event):
         """Worker thread that generates HTTP traffic by uploading/downloading data"""
-        # Target self (web-stress container) to generate measurable network traffic
-        target_url = "http://127.0.0.1:8080/health"
+        # Target via published port to force traffic through eth0 (not loopback)
+        # Using master node IP ensures traffic goes through container's network interface
+        target_url = "http://192.168.2.50:8080/health"
 
         # Create payload for upload (1MB = generates ~8 Mbps per request if sent in 1 second)
         chunk_size = 1024 * 1024  # 1MB payload
