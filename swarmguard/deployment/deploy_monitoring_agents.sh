@@ -16,6 +16,7 @@ echo "Deploying agent on master..."
 ssh master "docker service create \
   --name monitoring-agent-master \
   --constraint 'node.hostname == master' \
+  --user root \
   --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
   --mount type=bind,src=/sys,dst=/host/sys,ro=true \
   --network swarmguard-net \
@@ -32,6 +33,7 @@ echo "Deploying agent on worker-1..."
 ssh master "docker service create \
   --name monitoring-agent-worker1 \
   --constraint 'node.hostname == worker-1' \
+  --user root \
   --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
   --mount type=bind,src=/sys,dst=/host/sys,ro=true \
   --network swarmguard-net \
@@ -48,6 +50,7 @@ echo "Deploying agent on worker-2..."
 ssh master "docker service create \
   --name monitoring-agent-worker2 \
   --constraint 'node.hostname == worker-2' \
+  --user root \
   --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
   --mount type=bind,src=/sys,dst=/host/sys,ro=true \
   --network swarmguard-net \
@@ -64,6 +67,7 @@ echo "Deploying agent on worker-3..."
 ssh master "docker service create \
   --name monitoring-agent-worker3 \
   --constraint 'node.hostname == worker-3' \
+  --user root \
   --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
   --mount type=bind,src=/sys,dst=/host/sys,ro=true \
   --network swarmguard-net \
@@ -80,6 +84,7 @@ echo "Deploying agent on worker-4..."
 ssh master "docker service create \
   --name monitoring-agent-worker4 \
   --constraint 'node.hostname == worker-4' \
+  --user root \
   --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
   --mount type=bind,src=/sys,dst=/host/sys,ro=true \
   --network swarmguard-net \
