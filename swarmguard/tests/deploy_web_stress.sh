@@ -16,7 +16,7 @@ ssh master "docker service create \
   --constraint 'node.hostname!=master' \
   --network swarmguard-net \
   --publish 8080:8080 \
-  --limit-memory 2G \
+  --limit-memory 4G \
   --reserve-memory 512M \
   --health-cmd 'curl -f http://localhost:8080/health || exit 1' \
   --health-interval 5s \

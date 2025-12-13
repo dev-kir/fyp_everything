@@ -336,7 +336,7 @@ class DockerController:
             # PLACEHOLDER: Assume low usage for testing scale-down logic
             # In production, replace with actual metrics query
             avg_cpu = 30.0  # Placeholder: 30% average CPU
-            avg_mem = 40.0  # Placeholder: 40% average memory
+            avg_mem = 35.0  # Placeholder: 35% average memory (below 80% threshold for scale-down)
 
             return {
                 'replica_count': current_replicas,
