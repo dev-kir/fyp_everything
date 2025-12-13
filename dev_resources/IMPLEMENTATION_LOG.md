@@ -1416,6 +1416,121 @@ chmod +x alpine_scenario1_visualize.sh alpine_scenario2_visualize.sh
 
 ---
 
+### Attempt 26: Fix Multi-Replica Stress Distribution
+**Date:** December 13, 2025 07:45 UTC
+**Problem:** Higher load values didn't trigger more replicas as expected
+
+**Root Cause Analysis:**
+- User asked: "Why does higher CPU/MEM/NET trigger more replicas?"
+- Answer: `/stress/combined` endpoint stresses **one container** (the one that receives the request)
+- Docker Swarm load balancer routes single curl request to single replica
+- Result: Only web-stress.1 gets stressed → scales 1→2, but web-stress.2 stays idle
+- No further scale-ups because web-stress.2 has low metrics
+
+**Solution:** Stress ALL replicas by sending multiple requests
+- [alpine_scenario2_visualize.sh:105-116](../swarmguard/tests/alpine_scenario2_visualize.sh#L105-L116)
+- Send 10 stress requests in parallel (loops through load balancer)
+- Docker Swarm distributes to different replicas
+- All replicas get stressed → continuous scale-up
+
+**How It Works Now:**
+
+```bash
+./alpine_scenario2_visualize.sh 90 1200 80 60
+```
+
+**Phase 1:**
+1. Sends 10× `/stress/combined?cpu=90&memory=1200&network=80`
+2. Docker Swarm distributes: 5 to replica-1, 5 to replica-2 (example)
+3. Both replicas stressed at 90% CPU, 1.2GB MEM, 80Mbps NET
+4. Scale-up: 1→2→3→4 replicas (continues until cooldown stops it)
+
+**Phase 2:**
+1. Sends `REPLICAS * 2` requests with 70% stress
+2. All replicas get moderate load
+3. Maintains scaled state without triggering more scale-ups
+
+**Relationship Between Values and Replicas:**
+- **Higher values** = Each replica stays overloaded longer
+- **Example with 90% CPU:**
+  - 1 replica: 90% → Scale-up
+  - 2 replicas: Each still 90% → Scale-up again
+  - 3 replicas: Each still 90% → Scale-up again
+  - 4 replicas: Cooldown prevents more scale-ups
+- **Lower values (75% CPU):**
+  - Might only trigger 1→2 scale-up before metrics drop
+
+**Commands:**
+```bash
+# Light load: 1→2 replicas
+./alpine_scenario2_visualize.sh 80 800 70 60
+
+# Medium load: 2-3 replicas
+./alpine_scenario2_visualize.sh 85 1000 75 60
+
+# Heavy load: 3-4+ replicas
+./alpine_scenario2_visualize.sh 90 1200 80 60
+
+# Very heavy: Max replicas (limited by cooldown)
+./alpine_scenario2_visualize.sh 95 1500 85 60
+```
+
+---
+
+### Attempt 27: Fix CPU Distribution - External Traffic Instead of Self-Stress
+**Date:** December 13, 2025 08:10 UTC
+**Problem:** CPU not distributed evenly in Grafana
+- Grafana showed: Network distributed ✅, but CPU concentrated on worker-1 ❌
+- User observation: "network is distributed, but i don't see the cpu usage distributed"
+
+**Root Cause:**
+- `/stress/combined` triggers **internal** CPU stress on the container
+- Self-stress is NOT distributed by Docker Swarm load balancer
+- Only the container receiving the stress request gets CPU-stressed
+- Result: worker-1 = 34% CPU, others = 0-2% CPU ❌
+
+**Solution:** Use CPU-intensive **external traffic** from Alpine nodes
+- [alpine_scenario2_visualize.sh:48-81](../swarmguard/tests/alpine_scenario2_visualize.sh#L48-L81)
+- Alpine nodes send CPU-intensive `/compute/pi?iterations=X` requests
+- Docker Swarm load balancer distributes requests to ALL replicas
+- Each replica processes Pi calculations → CPU load distributed evenly ✅
+
+**Key Changes:**
+
+**Phase 1 - Trigger Scale-Up:**
+1. Memory+Network self-stress: `curl /stress/memory` + `curl /stress/network`
+2. CPU from Alpine traffic: `wget /compute/pi?iterations=10000000` (4 nodes × 10 concurrent)
+3. Docker Swarm distributes: Each replica gets equal CPU load
+
+**Phase 2 - Visualize Distribution:**
+1. Moderate memory+network stress (70% of Phase 1)
+2. Moderate CPU-intensive traffic (70% of Phase 1 iterations)
+3. **Grafana shows**: CPU split evenly across all replicas
+
+**Pi Iteration Scaling:**
+- CPU 0-74%:  5M iterations (light)
+- CPU 75-84%: 10M iterations (medium)
+- CPU 85-89%: 15M iterations (heavy)
+- CPU 90-100%: 20M iterations (very heavy)
+
+**Expected Grafana Visualization:**
+```
+Before: worker-1: 34% CPU, worker-2: 0.8% CPU, worker-4: 1.5% CPU ❌
+After:  worker-1: 27% CPU, worker-2: 26% CPU, worker-4: 27% CPU ✅
+```
+
+**Commands:**
+```bash
+cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
+
+# Test with CPU distribution
+./alpine_scenario2_visualize.sh 80 800 70 60
+
+# Watch Grafana - should see CPU evenly split across all replicas
+```
+
+---
+
 ## Performance Targets
 
 | Metric | Target | Current Status |
