@@ -58,8 +58,12 @@ class MonitoringAgent:
         mem = container_metrics.get('memory_percent', 0)
         net_in = container_metrics.get('network_rx_mbps', 0)
         net_out = container_metrics.get('network_tx_mbps', 0)
-        net_total = (net_in + net_out) / 2
-        net_percent = (net_total / 100.0) * 100
+
+        # Calculate network percentage based on 100Mbps interface capacity (12.5 MB/s)
+        # Average of RX and TX as percentage of capacity
+        interface_capacity_mbps = 100.0  # 100Mbps network (PRD section 4.2)
+        net_total_mbps = net_in + net_out
+        net_percent = (net_total_mbps / interface_capacity_mbps) * 100
 
         should_alert = False
         scenario = None

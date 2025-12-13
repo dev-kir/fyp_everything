@@ -280,3 +280,75 @@ class DockerController:
         except Exception as e:
             logger.error(f"Scale-down error: {e}")
             return {'success': False, 'error': str(e)}
+
+    def get_autoscaling_services(self):
+        """
+        Get list of services that should be monitored for autoscaling (Scenario 2)
+        Returns list of service names that have > 1 replica
+        """
+        try:
+            services = self.client.services.list()
+            autoscaling_services = []
+
+            for service in services:
+                service_name = service.name
+                spec = service.attrs.get('Spec', {})
+                current_replicas = spec.get('Mode', {}).get('Replicated', {}).get('Replicas', 1)
+
+                # Only monitor services with > 1 replica (potential for scale-down)
+                # Exclude monitoring agents and recovery manager itself
+                if current_replicas > 1:
+                    if 'monitoring-agent' not in service_name and 'recovery-manager' not in service_name:
+                        autoscaling_services.append(service_name)
+
+            return autoscaling_services
+
+        except Exception as e:
+            logger.error(f"Error getting autoscaling services: {e}")
+            return []
+
+    def get_service_aggregate_metrics(self, service_name: str):
+        """
+        Get aggregate metrics across all replicas of a service
+        Returns: {
+            'replica_count': int,
+            'total_cpu_percent': float,  # Sum of all replica CPU percentages
+            'total_memory_percent': float,  # Sum of all replica memory percentages
+            'avg_cpu_percent': float,  # Average CPU per replica
+            'avg_memory_percent': float  # Average memory per replica
+        }
+        NOTE: This is a placeholder that returns dummy data.
+        In production, this should query actual container metrics from:
+        - Option 1: InfluxDB (query recent metrics for this service)
+        - Option 2: Docker stats API (query live stats for all tasks)
+        - Option 3: Monitoring agent cache (if agents expose metrics endpoint)
+        """
+        try:
+            service = self.client.services.get(service_name)
+            spec = service.attrs.get('Spec', {})
+            current_replicas = spec.get('Mode', {}).get('Replicated', {}).get('Replicas', 1)
+
+            # TODO: Implement actual metrics collection
+            # For now, return placeholder data based on replica count
+            # This allows the scale-down logic to work without real metrics
+            # Real implementation should query InfluxDB or Docker stats API
+
+            # PLACEHOLDER: Assume low usage for testing scale-down logic
+            # In production, replace with actual metrics query
+            avg_cpu = 30.0  # Placeholder: 30% average CPU
+            avg_mem = 40.0  # Placeholder: 40% average memory
+
+            return {
+                'replica_count': current_replicas,
+                'total_cpu_percent': avg_cpu * current_replicas,
+                'total_memory_percent': avg_mem * current_replicas,
+                'avg_cpu_percent': avg_cpu,
+                'avg_memory_percent': avg_mem
+            }
+
+        except docker.errors.NotFound:
+            logger.error(f"Service {service_name} not found")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting aggregate metrics for {service_name}: {e}")
+            return None

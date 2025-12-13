@@ -799,6 +799,120 @@ task_template['ForceUpdate'] += 1  # Increment to force recreation
 
 ---
 
+### Attempt 18: Implement Scenario 2 Scale-Down Detection + Fix Network Percentage
+**Issue:** Scenario 2 never tested - scale-down not implemented
+**Root Cause Analysis:**
+
+**Problem 1: No scale-down detection mechanism**
+- Monitoring agent only sends alerts when thresholds EXCEEDED (scale-up trigger)
+- No mechanism to detect when ALL containers are IDLE (scale-down trigger)
+- PRD requirement: `total_usage_all_containers < threshold * (N_containers - 1)`
+- Current implementation: Only reactive to high load, never detects low load
+
+**Problem 2: Wrong network percentage calculation**
+```python
+# BEFORE (monitoring-agent/agent.py:62)
+net_total = (net_in + net_out) / 2
+net_percent = (net_total / 100.0) * 100  # Always equals net_total! BUG!
+```
+
+**Solution Implemented:**
+
+**Fix 1: Network Percentage Calculation** [monitoring-agent/agent.py:62-66](../swarmguard/monitoring-agent/agent.py#L62-L66)
+```python
+# Calculate network percentage based on 100Mbps interface capacity (PRD section 4.2)
+interface_capacity_mbps = 100.0  # 100Mbps network
+net_total_mbps = net_in + net_out
+net_percent = (net_total_mbps / interface_capacity_mbps) * 100
+```
+
+**Fix 2: Background Scale-Down Monitoring Thread** [recovery-manager/manager.py:143-245](../swarmguard/recovery-manager/manager.py#L143-L245)
+
+**Architecture:**
+1. **Background Thread**: Runs every 60 seconds (PRD: scale_up_cooldown)
+2. **Service Discovery**: Automatically detects services with >1 replica (autoscaling candidates)
+3. **Aggregate Metrics**: Queries total usage across ALL replicas of each service
+4. **PRD Formula**: Applies `total_usage < threshold * (N - 1)` to determine scale-down eligibility
+5. **Sustained Idle**: Requires idle state for 180 seconds (PRD: scale_down_cooldown) before scaling down
+6. **Zero Downtime**: Uses Docker Swarm's rolling scale-down
+
+**Implementation Details:**
+
+**manager.py Changes:**
+- Line 9: Added `Thread` import
+- Line 32-35: Added tracking variables: `scale_down_last_checked`, `running`, `monitor_thread`
+- Line 143-231: New `monitor_scale_down_thread()` method
+- Line 233-245: New `start_background_monitoring()` and `stop_background_monitoring()` methods
+- Line 280: Start monitoring thread on initialization
+- Line 288: Stop monitoring thread on shutdown
+
+**docker_controller.py Changes:**
+- Line 284-308: New `get_autoscaling_services()` method
+  - Returns list of services with >1 replica
+  - Excludes monitoring agents and recovery manager
+- Line 310-354: New `get_service_aggregate_metrics()` method
+  - **PLACEHOLDER IMPLEMENTATION**: Returns dummy metrics (30% CPU, 40% MEM)
+  - **TODO**: Replace with actual metrics from InfluxDB or Docker stats API
+  - Calculates total usage = avg_usage × replica_count
+
+**Scale-Down Logic Flow:**
+```
+Every 60 seconds:
+  For each service with >1 replica:
+    1. Get aggregate metrics (total CPU, total MEM across all replicas)
+    2. Check PRD formula:
+       can_scale_down = (total_cpu < threshold × (N-1)) AND (total_mem < threshold × (N-1))
+    3. If eligible:
+       a. First detection → Mark timestamp, log "idle detected"
+       b. Idle for 180s → Scale down by 1 replica
+    4. If not eligible → Reset idle timer
+    5. Respect 180s cooldown between scale-down operations
+```
+
+**Example Calculation:**
+```
+Service: web-stress with 3 replicas
+Threshold: CPU=75%, MEM=80%
+
+Current state:
+- Replica 1: 25% CPU, 30% MEM
+- Replica 2: 20% CPU, 25% MEM
+- Replica 3: 15% CPU, 20% MEM
+Total: 60% CPU, 75% MEM
+
+Scale-down formula:
+- Can scale to 2 replicas if: total < threshold × (3-1) = threshold × 2
+- CPU check: 60% < 75% × 2 = 150% ✅
+- MEM check: 75% < 80% × 2 = 160% ✅
+→ Eligible for scale-down!
+
+After scale-down (2 replicas):
+- Load redistributes: ~30% CPU, ~37.5% MEM per replica
+- Still within threshold (75%, 80%)
+```
+
+**Status:** ✅ CODE IMPLEMENTED - Ready to build and test
+
+**Testing Plan:**
+1. **Scenario 1 (Migration)**: Test with latest START-FIRST rolling update (Attempt 17 fix)
+2. **Scenario 2 Scale-Up**: Trigger high CPU+MEM+NET, verify scales from 1→2→3
+3. **Scenario 2 Scale-Down**: Stop load, wait 180s, verify scales 3→2→1
+
+**Known Limitations:**
+- `get_service_aggregate_metrics()` uses placeholder data (30% CPU, 40% MEM)
+- Real metrics integration needed for production use
+- Options: InfluxDB query, Docker stats API, or monitoring agent HTTP endpoint
+
+**Next Steps:**
+1. Rebuild recovery-manager and monitoring-agent images
+2. Deploy to swarm
+3. Test Scenario 1 migration with zero downtime
+4. Test Scenario 2 scale-up (high traffic)
+5. Test Scenario 2 scale-down (idle detection)
+6. Implement real metrics collection in `get_service_aggregate_metrics()`
+
+---
+
 ## Current Blockers
 
 ### Blocker 1: Scenario 1 Migration → ✅ SOLVED
