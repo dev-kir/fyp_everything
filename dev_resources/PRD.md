@@ -5,8 +5,8 @@
 
 **Project Name:** SwarmGuard (Proactive Recovery Framework)
 
-**Version:** 5.0
-**Date:** December 8, 2025
+**Version:** 5.1
+**Date:** December 13, 2025
 **Author:** Final Year Project Specification
 
 ---
@@ -274,6 +274,8 @@ IF (CPU_usage > CPU_THRESHOLD OR Memory_usage > MEMORY_THRESHOLD)
 THEN trigger Scenario 1
 ```
 
+**Note**: Uses OR for CPU/Memory to detect resource exhaustion on either dimension.
+
 **Recommended Thresholds:**
 - CPU_THRESHOLD: 70-80%
 - MEMORY_THRESHOLD: 75-85%
@@ -317,11 +319,12 @@ THEN trigger Scenario 1
 
 #### Detection Logic
 ```
-IF CPU_usage > CPU_THRESHOLD
-   AND Memory_usage > MEMORY_THRESHOLD
+IF (CPU_usage > CPU_THRESHOLD OR Memory_usage > MEMORY_THRESHOLD)
    AND Network_usage > NETWORK_THRESHOLD
 THEN trigger Scenario 2
 ```
+
+**Note**: Changed from AND to OR for CPU/Memory (v5.1 update). This allows detection based on either CPU or Memory bottlenecks when combined with high network traffic, which is more realistic for traffic-induced scaling scenarios.
 
 **Recommended Thresholds:**
 - CPU_THRESHOLD: 70-80%
@@ -1515,6 +1518,7 @@ WHERE "cpu_percent" > 75 AND time > now() - 1h
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
+| 5.1 | 2025-12-13 | Update | **Detection Logic Update**<br>- Changed Scenario 2 from `CPU AND Memory AND Network` to `(CPU OR Memory) AND Network`<br>- Makes testing easier and more realistic for traffic scenarios<br>- Aligns with Scenario 1 logic (also uses OR for CPU/Memory) |
 | 1.0 | 2025-12-08 | Initial | Initial PRD creation |
 | 2.0 | 2025-12-08 | Updated | - Recovery manager runs on master node (not control macOS)<br>- Added worker-11 IP: 192.168.2.61<br>- Added InfluxDB credentials and configuration<br>- Added hybrid communication strategy (continuous + event-driven)<br>- Added in-memory state structure for recovery manager<br>- Added reference to grafana_dashboard.json<br>- Clarified control macOS is only for SSH and testing |
 | 3.0 | 2025-12-08 | Performance Focus | **Major Update: Time-Sensitive Operations**<br>- Added strict performance requirements: MTTR < 10s, downtime < 2-3s<br>- Reduced metric collection interval to 5-10 seconds<br>- Added event-driven alert architecture for sub-second latency<br>- Added consecutive breach requirement to avoid false positives<br>- Specified precise timing measurements (T0-T6) for all recovery stages<br>- Added performance targets: alert < 1s, decision < 1s, action 3-8s<br>- Optimized recovery manager logic for async/concurrent operations<br>- Added HTTP keepalive and async optimizations for alerts<br>- Updated success criteria with quantifiable time targets<br>- Emphasized zero-downtime requirement throughout document |

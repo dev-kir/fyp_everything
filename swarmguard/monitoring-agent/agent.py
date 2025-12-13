@@ -72,7 +72,7 @@ class MonitoringAgent:
             should_alert = True
             scenario = "scenario1_migration"
             logger.warning(f"Scenario 1 detected: {container_metrics['container_name']} - CPU={cpu:.1f}%, MEM={mem:.1f}%, NET={net_percent:.1f}%")
-        elif cpu > self.cpu_threshold and mem > self.memory_threshold and net_percent > self.network_threshold_high:
+        elif (cpu > self.cpu_threshold or mem > self.memory_threshold) and net_percent > self.network_threshold_high:
             should_alert = True
             scenario = "scenario2_scaling"
             logger.warning(f"Scenario 2 detected: {container_metrics['container_name']} - CPU={cpu:.1f}%, MEM={mem:.1f}%, NET={net_percent:.1f}%")

@@ -913,6 +913,64 @@ After scale-down (2 replicas):
 
 ---
 
+### Attempt 19: Updated Detection Rules - OR Logic for CPU/Memory
+**Issue**: User feedback - Scenario 2 too strict (requires CPU AND Memory both high)
+**User Request**: "CPU HIGH OR MEMORY HIGH, and NETWORK LOW → Scenario 1" and "CPU HIGH OR MEMORY HIGH, and NETWORK HIGH → Scenario 2"
+
+**Root Cause**: Original rules required BOTH CPU AND Memory high for Scenario 2
+```python
+# BEFORE (too strict):
+Scenario 2: cpu > 75 AND mem > 80 AND net > 65
+
+# User's Grafana showed:
+CPU: 80.6% ✅
+Memory: 11% ❌  # Blocked scenario 2!
+Network: 98% ✅
+```
+
+**Solution**: Changed from AND to OR for CPU/Memory conditions
+
+**Code Changes:**
+
+**monitoring-agent/agent.py:75**
+```python
+# BEFORE:
+elif cpu > self.cpu_threshold and mem > self.memory_threshold and net_percent > self.network_threshold_high:
+
+# AFTER:
+elif (cpu > self.cpu_threshold or mem > self.memory_threshold) and net_percent > self.network_threshold_high:
+```
+
+**recovery-manager/rule_engine.py:32-34**
+```python
+# BEFORE:
+return (cpu > 75 and mem > 80 and net > 65)
+
+# AFTER:
+return ((cpu > 75 or mem > 80) and net > 65)
+```
+
+**New Detection Rules:**
+- **Scenario 1**: `(CPU > 75% OR Memory > 80%) AND Network < 35%` (unchanged)
+- **Scenario 2**: `(CPU > 75% OR Memory > 80%) AND Network > 65%` (changed from AND to OR)
+
+**Benefits:**
+1. Easier to test - only need to stress CPU + Network (no need high memory)
+2. More realistic - traffic spikes often cause CPU bottlenecks before memory
+3. Consistent logic - both scenarios use OR for CPU/Memory
+
+**Testing:**
+```bash
+# Now works with just CPU + Network high:
+curl "http://IP:8080/stress/combined?cpu=80&memory=500&network=50&duration=300&ramp=30"
+
+# Expected: Scenario 2 triggers (CPU=80%, MEM=low, NET=high)
+```
+
+**Status**: ✅ CODE UPDATED - Ready to rebuild and test
+
+---
+
 ## Current Blockers
 
 ### Blocker 1: Scenario 1 Migration → ✅ SOLVED

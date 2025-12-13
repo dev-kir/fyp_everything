@@ -29,6 +29,6 @@ class RuleEngine:
         cpu = metrics.get('cpu_percent', 0)
         mem = metrics.get('memory_percent', 0)
         net = metrics.get('network_percent', 0)
-        return (cpu > self.scenario2_config.get('cpu_threshold', 75) and
-                mem > self.scenario2_config.get('memory_threshold', 80) and
+        return ((cpu > self.scenario2_config.get('cpu_threshold', 75) or
+                mem > self.scenario2_config.get('memory_threshold', 80)) and
                 net > self.scenario2_config.get('network_threshold_min', 65))
