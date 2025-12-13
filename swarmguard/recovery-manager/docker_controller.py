@@ -201,6 +201,30 @@ class DockerController:
 
             logger.info(f"Final task distribution: {final_tasks}")
 
+            # Step 6: Clean up migration constraints to restore normal scheduling
+            # Remove node.hostname!= constraints added during migration
+            service.reload()
+            current_spec = service.attrs['Spec']
+            current_task_template = current_spec.get('TaskTemplate', {})
+            current_placement = current_task_template.get('Placement', {})
+            current_constraints_after = current_placement.get('Constraints', [])
+
+            # Remove migration constraints (node.hostname!=...)
+            cleaned_constraints = [c for c in current_constraints_after if 'node.hostname!=' not in c]
+
+            if len(cleaned_constraints) != len(current_constraints_after):
+                logger.info(f"Step 6: Cleaning up migration constraints")
+                logger.info(f"Constraints: {current_constraints_after} → {cleaned_constraints}")
+
+                current_task_template['Placement']['Constraints'] = cleaned_constraints
+
+                # Update service with cleaned constraints
+                service.update(
+                    task_template=current_task_template,
+                    version=service.version
+                )
+                logger.info(f"✅ Migration constraints removed - normal scheduling restored")
+
             total_time = time.time() - start_time
 
             if new_node and new_node != from_node and from_node not in final_tasks:
