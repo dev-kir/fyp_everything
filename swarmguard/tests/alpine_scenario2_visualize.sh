@@ -2,6 +2,14 @@
 # Alpine Pi Scenario 2 Load Test - Visualize Resource Distribution
 # Purpose: Generate traffic to trigger scale-up, then observe load distribution in Grafana
 # Optimized for: Seeing CPU/MEM/NET split across multiple replicas
+#
+# Usage:
+#   ./alpine_scenario2_visualize.sh [CPU] [MEMORY] [NETWORK] [RAMP]
+#
+# Examples:
+#   ./alpine_scenario2_visualize.sh                    # Default: CPU=85%, MEM=800MB, NET=70Mbps, RAMP=10s
+#   ./alpine_scenario2_visualize.sh 90 1200 80 60      # Heavy: CPU=90%, MEM=1.2GB, NET=80Mbps, RAMP=60s
+#   ./alpine_scenario2_visualize.sh 95 1500 85 60      # Very heavy: More replicas
 
 set -e
 
@@ -10,12 +18,24 @@ echo "Scenario 2: Load Distribution Visualization"
 echo "=========================================="
 echo ""
 
-# Configuration
+# Configuration from command-line arguments
+TARGET_CPU=${1:-85}        # Default 85%
+TARGET_MEMORY=${2:-800}    # Default 800MB
+TARGET_NETWORK=${3:-70}    # Default 70Mbps
+RAMP_TIME=${4:-10}         # Default 10s
+
 SERVICE_URL="http://192.168.2.50:8080"
 ALPINE_NODES=("alpine-1" "alpine-2" "alpine-3" "alpine-4")
 PHASE1_DURATION=120  # 2 min to trigger scale-up
 PHASE2_DURATION=180  # 3 min to observe distribution
 CONCURRENT=10        # Higher concurrency for CPU+NET load
+
+echo "Stress Configuration:"
+echo "  CPU Target:     ${TARGET_CPU}%"
+echo "  Memory Target:  ${TARGET_MEMORY}MB"
+echo "  Network Target: ${TARGET_NETWORK}Mbps"
+echo "  Ramp Time:      ${RAMP_TIME}s"
+echo ""
 
 echo "Test phases:"
 echo "  Phase 1: ${PHASE1_DURATION}s - Trigger scale-up (heavy load)"
@@ -79,9 +99,9 @@ echo "PHASE 1: Trigger Scale-Up (${PHASE1_DURATION}s)"
 echo "=========================================="
 echo ""
 echo "Step 1: Triggering built-in stress test on container..."
-echo "        CPU=85%, Memory=800MB, Network=70Mbps"
-curl -s "$SERVICE_URL/stress/combined?cpu=85&memory=800&network=70&duration=$PHASE1_DURATION&ramp=10" > /dev/null
-echo "✓ Self-stress activated"
+echo "        CPU=${TARGET_CPU}%, Memory=${TARGET_MEMORY}MB, Network=${TARGET_NETWORK}Mbps, Ramp=${RAMP_TIME}s"
+curl -s "$SERVICE_URL/stress/combined?cpu=$TARGET_CPU&memory=$TARGET_MEMORY&network=$TARGET_NETWORK&duration=$PHASE1_DURATION&ramp=$RAMP_TIME" > /dev/null
+echo "✓ Self-stress activated (will ramp up over ${RAMP_TIME}s)"
 echo ""
 
 echo "Step 2: Generating distributed traffic from ${#ALPINE_NODES[@]} Alpine nodes..."
@@ -126,10 +146,16 @@ echo "=========================================="
 echo "PHASE 2: Observe Load Distribution (${PHASE2_DURATION}s)"
 echo "=========================================="
 echo ""
+# Phase 2: Reduce stress to 70% of Phase 1 targets to maintain scale without triggering more scale-ups
+PHASE2_CPU=$((TARGET_CPU * 70 / 100))
+PHASE2_MEMORY=$((TARGET_MEMORY * 70 / 100))
+PHASE2_NETWORK=$((TARGET_NETWORK * 70 / 100))
+PHASE2_RAMP=$((RAMP_TIME / 2))
+
 echo "Step 1: Activating moderate self-stress to maintain scale..."
-echo "        CPU=60%, Memory=500MB, Network=50Mbps"
-curl -s "$SERVICE_URL/stress/combined?cpu=60&memory=500&network=50&duration=$PHASE2_DURATION&ramp=5" > /dev/null
-echo "✓ Moderate stress activated"
+echo "        CPU=${PHASE2_CPU}%, Memory=${PHASE2_MEMORY}MB, Network=${PHASE2_NETWORK}Mbps, Ramp=${PHASE2_RAMP}s"
+curl -s "$SERVICE_URL/stress/combined?cpu=$PHASE2_CPU&memory=$PHASE2_MEMORY&network=$PHASE2_NETWORK&duration=$PHASE2_DURATION&ramp=$PHASE2_RAMP" > /dev/null
+echo "✓ Moderate stress activated (70% of Phase 1 load)"
 echo ""
 
 echo "Step 2: Generating distributed traffic from Alpine nodes..."

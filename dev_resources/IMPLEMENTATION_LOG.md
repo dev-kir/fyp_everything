@@ -1360,6 +1360,62 @@ cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
 
 ---
 
+### Attempt 25: Configurable Alpine Scripts + Scenario 1 Visualization
+**Date:** December 13, 2025 07:40 UTC
+**Problem:**
+1. Worker-2 CPU distribution not even - fixed stress values didn't scale well
+2. Script not flexible - couldn't test heavier loads for more replicas
+3. No Scenario 1 Alpine visualization script
+
+**Solution:** Made scripts configurable with command-line parameters
+
+**Updated: alpine_scenario2_visualize.sh**
+- Location: [swarmguard/tests/alpine_scenario2_visualize.sh](../swarmguard/tests/alpine_scenario2_visualize.sh)
+- **Parameters:** `./alpine_scenario2_visualize.sh [CPU] [MEMORY] [NETWORK] [RAMP]`
+- **Examples:**
+  ```bash
+  ./alpine_scenario2_visualize.sh                    # Default: 85% CPU, 800MB, 70Mbps, 10s ramp
+  ./alpine_scenario2_visualize.sh 90 1200 80 60      # Heavy: 90% CPU, 1.2GB, 80Mbps, 60s ramp (3+ replicas)
+  ./alpine_scenario2_visualize.sh 95 1500 85 60      # Very heavy: More replicas
+  ```
+- **Phase 2:** Auto-calculated as 70% of Phase 1 targets (maintains scale without triggering more scale-ups)
+
+**Created: alpine_scenario1_visualize.sh**
+- Location: [swarmguard/tests/alpine_scenario1_visualize.sh](../swarmguard/tests/alpine_scenario1_visualize.sh)
+- **Parameters:** `./alpine_scenario1_visualize.sh [CPU] [MEMORY] [RAMP]`
+- **Features:**
+  - Continuous Alpine traffic during migration (zero-downtime verification)
+  - Detects failed requests (downtime detection)
+  - Shows uptime percentage per Alpine node
+  - Visualizes migration in Grafana
+- **Examples:**
+  ```bash
+  ./alpine_scenario1_visualize.sh                # Default: 80% CPU, 900MB, 30s ramp
+  ./alpine_scenario1_visualize.sh 85 1200 60     # Heavier load with 60s ramp
+  ```
+
+**Key Improvements:**
+1. ✅ Gradual ramp: User can set 60s ramp to see gradual increase in Grafana
+2. ✅ Configurable load: Adjust CPU/MEM/NET to trigger more replicas
+3. ✅ Scenario 1 zero-downtime proof: Alpine traffic continues through migration
+4. ✅ Automatic Phase 2 calculation: Maintains scale without manual tuning
+
+**Commands:**
+```bash
+cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
+
+# Make executable
+chmod +x alpine_scenario1_visualize.sh alpine_scenario2_visualize.sh
+
+# Test Scenario 2 with 60s ramp and heavier load
+./alpine_scenario2_visualize.sh 90 1200 80 60
+
+# Test Scenario 1 with 60s ramp
+./alpine_scenario1_visualize.sh 85 1200 60
+```
+
+---
+
 ## Performance Targets
 
 | Metric | Target | Current Status |
