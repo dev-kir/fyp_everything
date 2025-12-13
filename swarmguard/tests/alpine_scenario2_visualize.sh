@@ -25,15 +25,15 @@ echo "Alpine nodes: ${#ALPINE_NODES[@]} (${ALPINE_NODES[@]})"
 echo "Concurrent per node: $CONCURRENT"
 echo ""
 
-# Create Alpine load script with CPU + Network stress
+# Create Alpine load script with distributed HTTP requests
 cat > /tmp/alpine_scenario2.sh << 'EOF'
 #!/bin/sh
-# Generates HIGH CPU + HIGH NETWORK load
+# Generates distributed HTTP traffic to trigger load balancing
 SERVICE_URL="$1"
 DURATION="$2"
 CONCURRENT="$3"
 
-echo "[$HOSTNAME] Starting heavy load..."
+echo "[$HOSTNAME] Starting distributed traffic..."
 END_TIME=$(($(date +%s) + DURATION))
 COUNT=0
 
@@ -41,9 +41,9 @@ while [ $(date +%s) -lt $END_TIME ]; do
     # Launch concurrent requests in background
     for i in $(seq 1 $CONCURRENT); do
         (
-            # CPU-intensive: Calculate Pi with 5M iterations
-            # Network-intensive: Large response body
-            wget -q -O /dev/null "$SERVICE_URL/compute/pi?iterations=5000000" 2>&1
+            # Simple HTTP requests to trigger load balancing
+            # Docker Swarm will distribute across replicas
+            wget -q -O /dev/null "$SERVICE_URL/compute/pi?iterations=1000000" 2>&1
         ) &
     done
 
@@ -51,8 +51,8 @@ while [ $(date +%s) -lt $END_TIME ]; do
     wait
     COUNT=$((COUNT + CONCURRENT))
 
-    # Brief pause
-    sleep 0.5
+    # Brief pause to sustain load without overwhelming Alpine Pi
+    sleep 0.2
 done
 
 echo "[$HOSTNAME] Completed $COUNT requests"
@@ -78,7 +78,14 @@ echo "=========================================="
 echo "PHASE 1: Trigger Scale-Up (${PHASE1_DURATION}s)"
 echo "=========================================="
 echo ""
-echo "Generating HEAVY load from ${#ALPINE_NODES[@]} Alpine nodes..."
+echo "Step 1: Triggering built-in stress test on container..."
+echo "        CPU=85%, Memory=800MB, Network=70Mbps"
+curl -s "$SERVICE_URL/stress/combined?cpu=85&memory=800&network=70&duration=$PHASE1_DURATION&ramp=10" > /dev/null
+echo "✓ Self-stress activated"
+echo ""
+
+echo "Step 2: Generating distributed traffic from ${#ALPINE_NODES[@]} Alpine nodes..."
+echo "        This traffic will be load-balanced across replicas after scale-up"
 echo "Expected: CPU+MEM+NET high → Scenario 2 scale-up"
 echo ""
 
@@ -119,7 +126,14 @@ echo "=========================================="
 echo "PHASE 2: Observe Load Distribution (${PHASE2_DURATION}s)"
 echo "=========================================="
 echo ""
-echo "Generating SUSTAINED load across replicas..."
+echo "Step 1: Activating moderate self-stress to maintain scale..."
+echo "        CPU=60%, Memory=500MB, Network=50Mbps"
+curl -s "$SERVICE_URL/stress/combined?cpu=60&memory=500&network=50&duration=$PHASE2_DURATION&ramp=5" > /dev/null
+echo "✓ Moderate stress activated"
+echo ""
+
+echo "Step 2: Generating distributed traffic from Alpine nodes..."
+echo "        Traffic will be load-balanced across $PHASE1_REPLICAS replicas"
 echo ""
 echo "📊 OPEN GRAFANA NOW TO SEE DISTRIBUTION:"
 echo "   → http://192.168.2.61:3000"
@@ -128,14 +142,13 @@ echo ""
 echo "   What you'll see in Grafana:"
 echo "   ✓ Multiple lines: web-stress.1, web-stress.2, web-stress.3, etc."
 echo "   ✓ Each replica on different worker node (worker-1, worker-2, worker-3, worker-4)"
-echo "   ✓ CPU usage split across $PHASE1_REPLICAS replicas (~30-40% each)"
-echo "   ✓ Memory split across replicas"
-echo "   ✓ Network traffic distributed evenly"
-echo "   ✓ Load balancing in action!"
+echo "   ✓ CPU/Memory split across $PHASE1_REPLICAS replicas"
+echo "   ✓ Network traffic from Alpine distributed to all replicas"
+echo "   ✓ Docker Swarm load balancing in action!"
 echo ""
 
-# Reduce concurrency for sustained load (not triggering more scale-ups)
-SUSTAINED_CONCURRENT=5
+# Sustained traffic to show distribution
+SUSTAINED_CONCURRENT=8
 
 PIDS=()
 for node in "${ALPINE_NODES[@]}"; do

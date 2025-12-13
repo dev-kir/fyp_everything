@@ -1322,6 +1322,44 @@ chmod +x alpine_scenario2_visualize.sh
 
 ---
 
+### Attempt 24: Fix Alpine Script - Hybrid Stress + Distributed Traffic
+**Date:** December 13, 2025 07:25 UTC
+**Problem:** Alpine script failed to trigger Scenario 2 scale-up
+**Root Cause:**
+- Alpine Pi nodes (ARM, low CPU) too weak to generate sufficient load
+- External HTTP requests from Alpine Pi couldn't saturate x86_64 web-stress container
+- Container stayed at low utilization → no scale-up triggered
+
+**Solution:** Hybrid approach in [alpine_scenario2_visualize.sh](../swarmguard/tests/alpine_scenario2_visualize.sh)
+
+**Phase 1 - Trigger Scale-Up:**
+1. Built-in self-stress: `curl /stress/combined?cpu=85&memory=800&network=70`
+   - Container stresses itself (guaranteed high CPU/MEM/NET)
+   - Triggers Scenario 2 detection → scale-up
+2. Alpine distributed traffic: Parallel HTTP requests from 4 Alpine Pi nodes
+   - Shows load balancing after scale-up
+
+**Phase 2 - Visualize Distribution:**
+1. Moderate self-stress: `cpu=60&memory=500&network=50`
+   - Maintains scaled state (prevents scale-down)
+2. Alpine distributed traffic: Sustained HTTP requests
+   - **Each request load-balanced across all replicas**
+   - Grafana shows traffic distributed evenly
+
+**Expected Grafana Visualization:**
+- web-stress.1 on worker-1: receives 33% of Alpine traffic
+- web-stress.2 on worker-2: receives 33% of Alpine traffic
+- web-stress.3 on worker-4: receives 33% of Alpine traffic
+- Network RX/TX metrics show equal distribution
+
+**Commands:**
+```bash
+cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
+./alpine_scenario2_visualize.sh
+```
+
+---
+
 ## Performance Targets
 
 | Metric | Target | Current Status |
