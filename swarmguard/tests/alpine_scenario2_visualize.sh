@@ -93,8 +93,8 @@ EOF
 # Deploy to Alpine nodes
 echo "[1/4] Deploying to Alpine nodes..."
 for node in "${ALPINE_NODES[@]}"; do
-    # Kill any existing test processes
-    ssh $node "pkill -f alpine_scenario2.sh || true"
+    # Kill any existing test processes (ignore errors)
+    ssh $node "pkill -f alpine_scenario2.sh 2>/dev/null" || true
     # Deploy new script
     scp -q /tmp/alpine_scenario2.sh ${node}:/tmp/
     ssh $node "chmod +x /tmp/alpine_scenario2.sh"
