@@ -1531,6 +1531,81 @@ cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
 
 ---
 
+### Attempt 28: Redesign for Continuous Traffic + Configurable Simulated Users
+**Date:** December 13, 2025 08:20 UTC
+**Problems:**
+1. **Bash syntax error**: `${#ALPINE_NODES[@}}` - extra `}` broke script
+2. **User insight**: "script we made, it should just constantly send small request... pile up to reach threshold... after it distributed into multiple nodes, the pi should still send request so that we can see it distribute evenly"
+3. **Design flaw**: Script sent traffic in phases, stopped between phases → couldn't see distribution
+
+**Root Cause:**
+- Previous design: Phase 1 (trigger scale-up) → stop → Phase 2 (observe distribution)
+- Problem: Traffic stopped when switching phases → replicas idle → can't observe distribution
+- Missing: Continuous traffic that flows through scale-up and shows distribution
+
+**Solution:** Complete redesign to continuous traffic model
+- [alpine_scenario2_visualize.sh](../swarmguard/tests/alpine_scenario2_visualize.sh) - Full rewrite
+
+**Key Changes:**
+
+**1. Continuous Traffic (300s)**
+```bash
+# Before: Two phases with gaps
+Phase 1: 120s → stop → Phase 2: 180s
+
+# After: One continuous flow
+Continuous: 300s non-stop traffic from Alpine nodes
+```
+
+**2. Simulated Users Parameter**
+```bash
+# New parameter: USERS (default 10)
+./alpine_scenario2_visualize.sh [CPU] [MEM] [NET] [RAMP] [USERS]
+
+# Examples:
+./alpine_scenario2_visualize.sh 80 800 70 60 10   # 10 users/node = 40 total
+./alpine_scenario2_visualize.sh 90 1200 80 60 20  # 20 users/node = 80 total (more load)
+```
+
+**3. Real-Time Distribution Observation**
+- Alpine traffic runs continuously for 5 minutes
+- As system scales: 1→2→3 replicas
+- Traffic automatically distributed by Docker Swarm
+- Grafana shows load split in real-time
+
+**Expected Behavior:**
+```
+T+0s:   1 replica  → CPU 80% on worker-1
+T+60s:  Scale 1→2  → CPU 40% on worker-1, 40% on worker-2
+T+120s: Scale 2→3  → CPU 27% on worker-1, 27% on worker-2, 27% on worker-4
+T+300s: Still 3 replicas with even distribution
+```
+
+**Fixed:**
+✅ Bash syntax error
+✅ Continuous traffic throughout test
+✅ Configurable simulated users
+✅ Real-time distribution visualization
+✅ No gaps in traffic
+
+**Commands:**
+```bash
+cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
+
+# Light load: 10 users (40 total)
+./alpine_scenario2_visualize.sh 80 800 70 60 10
+
+# Medium load: 15 users (60 total)
+./alpine_scenario2_visualize.sh 85 1000 75 60 15
+
+# Heavy load: 20 users (80 total) - more replicas
+./alpine_scenario2_visualize.sh 90 1200 80 60 20
+
+# Watch Grafana for continuous distribution visualization
+```
+
+---
+
 ## Performance Targets
 
 | Metric | Target | Current Status |

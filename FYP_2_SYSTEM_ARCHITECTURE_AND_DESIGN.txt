@@ -1,0 +1,788 @@
+================================================================================
+SWARMGUARD: SYSTEM ARCHITECTURE AND DESIGN
+================================================================================
+
+PART 2: SYSTEM ARCHITECTURE, DESIGN DECISIONS, AND TECHNICAL IMPLEMENTATION
+(Foundation for Chapter 3: Methodology and System Design)
+
+================================================================================
+1. OVERALL SYSTEM ARCHITECTURE
+================================================================================
+
+1.1 High-Level Architecture Overview
+
+SwarmGuard implements a distributed monitoring and recovery system consisting
+of four primary architectural components:
+
+COMPONENT 1: MONITORING AGENTS (Distributed)
+- Deployment: One agent per Docker Swarm node (5 total: master + 4 workers)
+- Purpose: Collect real-time metrics from local containers
+- Technology: Python-based containerized service
+- Communication: Bidirectional (sends metrics to InfluxDB, sends alerts to
+  Recovery Manager)
+
+COMPONENT 2: RECOVERY MANAGER (Centralized)
+- Deployment: Single instance on master node
+- Purpose: Central decision engine for recovery actions
+- Technology: Python Flask HTTP server
+- Communication: Receives alerts from agents, issues commands to Docker Swarm
+
+COMPONENT 3: MONITORING INFRASTRUCTURE (External)
+- InfluxDB: Time-series database for historical metrics (Raspberry Pi)
+- Grafana: Visualization and dashboards (Raspberry Pi)
+- Purpose: Observability and analysis (not in critical recovery path)
+
+COMPONENT 4: TEST APPLICATION (Web-Stress)
+- Deployment: Docker Swarm service with configurable replicas
+- Purpose: Controllable stress testing with gradual resource ramp-up
+- Technology: Python FastAPI with CPU/Memory/Network stress endpoints
+
+SUPPORTING INFRASTRUCTURE:
+- Load Testing Cluster: 4 Raspberry Pi 1.2B+ nodes running Alpine Linux
+- Control Machine: macOS for SSH orchestration and test execution
+- Private Registry: docker-registry.amirmuz.com for container images
+
+1.2 Architectural Pattern: Event-Driven Monitoring
+
+DESIGN CHOICE: Hybrid Architecture
+SwarmGuard uses a hybrid approach combining continuous metrics collection with
+event-driven alerting:
+
+CONTINUOUS PATH (Observability):
+Monitoring Agents → InfluxDB (every 5-10 seconds)
+Purpose: Historical data, Grafana visualization, post-incident analysis
+
+EVENT-DRIVEN PATH (Recovery):
+Monitoring Agents → Recovery Manager (immediate on threshold breach)
+Purpose: Real-time alerts, sub-second notification, fast recovery
+
+WHY THIS DESIGN?
+1. Separation of Concerns:
+   - Observability (InfluxDB) separate from decision-making (Recovery Manager)
+   - InfluxDB latency or failures don't impact recovery operations
+   - Real-time path optimized for speed, historical path for completeness
+
+2. Network Efficiency:
+   - Batched InfluxDB writes reduce overhead (20 metrics per request)
+   - Event-driven alerts only sent when thresholds exceeded
+   - Total bandwidth < 0.5 Mbps despite 100Mbps constraint
+
+3. Fault Tolerance:
+   - Recovery continues even if InfluxDB is unavailable
+   - Alerts use HTTP keepalive connections with retry logic
+   - Multiple failure paths isolated from each other
+
+1.3 Data Flow Diagram
+
+NORMAL OPERATION (No Threshold Violation):
+┌─────────────────┐
+│ Container       │ (Running normally)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Docker Stats    │ (CPU, Memory, Network)
+│ API             │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Monitoring      │ (Collect metrics every 5s)
+│ Agent           │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ InfluxDB        │ (Batch write every 10s)
+│                 │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Grafana         │ (Visualization)
+└─────────────────┘
+
+THRESHOLD VIOLATION (Recovery Triggered):
+┌─────────────────┐
+│ Container       │ (CPU > 75% detected)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Monitoring      │ (Threshold check)
+│ Agent           │
+└────┬───────┬────┘
+     │       │
+     │       └──────────────────┐
+     │                          │
+     ▼                          ▼
+┌─────────────────┐    ┌─────────────────┐
+│ InfluxDB        │    │ Recovery        │ (HTTP POST /alert)
+│ (Background)    │    │ Manager         │ (< 1 second)
+└─────────────────┘    └────────┬────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ Rule Engine     │ (Scenario detection)
+                       │ - Scenario 1?   │
+                       │ - Scenario 2?   │
+                       └────────┬────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ Docker          │ (API calls)
+                       │ Controller      │ - Migrate
+                       └────────┬────────┘ - Scale
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │ Docker Swarm    │ (Execute recovery)
+                       │ API             │
+                       └─────────────────┘
+
+1.4 Control Flow: From Detection to Recovery
+
+TIME BUDGET BREAKDOWN (Target: < 10 seconds total):
+
+T0: Threshold Violation Detected
+    - Monitoring agent detects CPU > 75% or Memory > 80%
+    - Local threshold check (< 10ms)
+
+T1: Alert Sent (Target: < 100ms from T0)
+    - HTTP POST to recovery-manager:5000/alert
+    - Compact JSON payload (< 500 bytes)
+    - Achieved: 7-9ms in testing
+
+T2: Alert Received (Target: < 1 second from T1)
+    - Flask HTTP server processes request
+    - Achieved: < 50ms network latency
+
+T3: Decision Made (Target: < 1 second from T2)
+    - Rule engine evaluates scenario
+    - Consecutive breach check (requires 2 breaches)
+    - Cooldown check (60s migration, 180s scale-down)
+    - Achieved: < 100ms decision time
+
+T4: Action Initiated (Immediate from T3)
+    - Docker API call via Python SDK
+    - Scenario 1: service.update() with force_update
+    - Scenario 2: service.scale()
+
+T5: New Container/Replica Ready (Target: < 8 seconds from T4)
+    - Scenario 1: New container on different node
+    - Scenario 2: New replica added to cluster
+    - Docker health checks must pass
+    - Achieved: 6-8 seconds
+
+T6: Old Container Removed (Scenario 1 only)
+    - Docker Swarm automatically removes old container after new one healthy
+    - Zero downtime: Both containers run simultaneously during transition
+
+TOTAL MTTR: T5 - T0 or T6 - T0
+- Target: < 10 seconds
+- Achieved: 6.08 seconds (Scenario 1), 0.01 seconds (Scenario 2 scale-up)
+
+================================================================================
+2. COMPONENT DESIGN DETAILS
+================================================================================
+
+2.1 Monitoring Agent Architecture
+
+DEPLOYMENT MODEL:
+- Docker Swarm service with node placement constraints
+- One agent per node (hostname constraint)
+- Privileged access to Docker socket and system resources
+
+REQUIRED MOUNTS:
+- /var/run/docker.sock → Access Docker API for container stats
+- /proc → Read-only access for CPU statistics
+- /sys → Read-only access for network interface statistics
+
+TECHNOLOGY STACK:
+- Base Image: python:3.11-slim
+- Language: Python 3.11
+- Framework: asyncio for concurrent operations
+- Dependencies:
+  - docker: Python Docker SDK for container API
+  - aiohttp: Async HTTP client for alerts and InfluxDB writes
+  - psutil: System metrics collection
+
+CONFIGURATION (Environment Variables):
+- NODE_NAME: Identifies which node this agent monitors
+- NET_IFACE: Network interface to monitor (e.g., enp5s0f0, eno1)
+- POLL_INTERVAL: Metrics collection frequency (default: 5 seconds)
+- INFLUXDB_URL: InfluxDB write endpoint
+- INFLUXDB_TOKEN: Authentication token
+- RECOVERY_MANAGER_URL: HTTP endpoint for alerts
+- CPU_THRESHOLD: Trigger threshold for CPU (default: 75%)
+- MEMORY_THRESHOLD: Trigger threshold for Memory (default: 80%)
+- NETWORK_THRESHOLD_LOW: Low network boundary (default: 35%)
+- NETWORK_THRESHOLD_HIGH: High network boundary (default: 65%)
+
+CORE LOGIC FLOW:
+1. Initialization:
+   - Connect to Docker socket
+   - Initialize InfluxDB writer and alert sender
+   - Load configuration from environment
+
+2. Main Event Loop (every 5 seconds):
+   - Query Docker API: GET /containers/json
+   - For each container:
+     a. GET /containers/{id}/stats?stream=false
+     b. Parse CPU percentage from stats
+     c. Parse memory usage and percentage
+     d. Read network stats from /sys/class/net/{interface}/statistics/
+     e. Calculate network percentage based on 100Mbps capacity
+     f. Identify service name from container labels
+
+3. Threshold Evaluation:
+   - Check Scenario 1: (CPU > 75 OR Memory > 80) AND Network < 35
+   - Check Scenario 2: (CPU > 75 OR Memory > 80) AND Network > 65
+   - If violation detected: Send alert immediately (async)
+   - Regardless: Batch metrics for InfluxDB write
+
+4. Metrics Transmission:
+   - Alerts: Immediate HTTP POST to recovery manager (< 1 second)
+   - InfluxDB: Batched write every 10 seconds or 20 metrics (whichever first)
+   - Use async I/O to prevent blocking
+
+KEY DESIGN DECISIONS:
+
+Decision 1: OR Logic for CPU/Memory (Changed in Attempt 19)
+Why: Traffic spikes often bottleneck on CPU before memory. Requiring both
+     thresholds made testing difficult and was unrealistic for real workloads.
+Impact: Easier to trigger, more realistic detection
+
+Decision 2: Network Percentage Calculation (Fixed in Attempt 18)
+Formula: (Network_RX_Mbps + Network_TX_Mbps) / 100 Mbps × 100
+Why: Absolute bandwidth meaningless without capacity context
+Before: (net_total / 100.0) × 100 = net_total (bug!)
+After: Correctly normalizes to interface capacity
+
+Decision 3: Consecutive Breach Requirement (2 breaches)
+Why: Prevents false positives from transient spikes
+Tradeoff: Adds 5-10 seconds to detection time
+Benefit: Reduces alert noise, prevents unnecessary migrations
+
+2.2 Recovery Manager Architecture
+
+DEPLOYMENT MODEL:
+- Single instance on master node (constraint: node.hostname == master)
+- Requires Docker socket access for Swarm API calls
+- Flask HTTP server listening on port 5000
+
+TECHNOLOGY STACK:
+- Language: Python 3.11
+- Framework: Flask for HTTP API
+- Dependencies:
+  - docker: Python Docker SDK for Swarm operations
+  - PyYAML: Configuration file parsing
+  - threading: Background thread for scale-down monitoring
+
+COMPONENTS:
+
+A. HTTP Server (manager.py)
+- POST /alert: Receives threshold violation alerts from monitoring agents
+- GET /health: Health check endpoint for monitoring
+- Runs on port 5000 with Flask development server
+
+B. Rule Engine (rule_engine.py)
+- evaluate_scenario1(cpu, mem, net): Returns True if migration needed
+- evaluate_scenario2(cpu, mem, net): Returns True if scaling needed
+- Simple threshold-based logic (no ML complexity)
+- Formula:
+  - Scenario 1: (cpu > 75 OR mem > 80) AND net < 35
+  - Scenario 2: (cpu > 75 OR mem > 80) AND net > 65
+
+C. Docker Controller (docker_controller.py)
+- migrate_container(): Implements zero-downtime migration
+- scale_up(): Incremental scaling (N → N+1)
+- scale_down(): Conservative scaling (N → N-1)
+- get_service_node(): Identifies current task placement
+- Uses Docker Python SDK low-level API for advanced operations
+
+D. Configuration Loader (config_loader.py)
+- Loads YAML configuration file
+- Provides get() method with dot notation (e.g., 'scenarios.scenario1.cpu_threshold')
+- Hot-reload not implemented (requires restart to apply config changes)
+
+CRITICAL DESIGN DECISIONS:
+
+Decision 1: START-FIRST Rolling Update (Attempt 16-17)
+Problem: Default Docker Swarm update order is "stop-first"
+Impact: 19 seconds downtime when old container stopped before new one started
+Solution: Use low-level API to configure UpdateConfig with Order: 'start-first'
+Code:
+  update_config = {
+      'Parallelism': 1,
+      'Delay': 0,
+      'Order': 'start-first',  # Key: New starts before old stops
+      'FailureAction': 'pause'
+  }
+  client.api.update_service(service.id, version=version,
+                             task_template=task_template,
+                             update_config=update_config)
+Result: Zero downtime achieved (both containers running during transition)
+
+Decision 2: ForceUpdate Counter vs force_update Parameter (Attempt 17)
+Problem: Low-level API doesn't accept force_update=True parameter
+Error: "ServiceApiMixin.update_service() got an unexpected keyword argument"
+Solution: Increment ForceUpdate field in TaskTemplate:
+  if 'ForceUpdate' not in task_template:
+      task_template['ForceUpdate'] = 0
+  task_template['ForceUpdate'] += 1
+Why: Forces Docker to recreate task even when image hasn't changed
+
+Decision 3: Constraint Cleanup After Migration (Attempt 22)
+Problem: Migration adds constraint 'node.hostname!=worker-3', which persists
+Impact: Subsequent scale-ups avoid worker-3, causing uneven distribution
+Solution: Step 6 in migrate_container() removes migration constraints after
+          successful migration, restoring normal scheduling
+Benefit: All worker nodes available for future scaling operations
+
+Decision 4: Stale Alert Detection (Attempt 9)
+Problem: Alert sent at T+0 (container on worker-3), processed at T+20 (after
+         migration already happened), triggers duplicate migration
+Solution: Before executing migration, verify container is still on reported node:
+  actual_node = get_service_node(service_name)
+  if actual_node != reported_node:
+      log("Stale alert ignored")
+      return
+Benefit: Prevents redundant migrations, saves cluster resources
+
+Decision 5: Background Scale-Down Thread (Attempt 18)
+Problem: Scale-up reactive to alerts, but no mechanism to detect idle state
+Solution: Background thread runs every 60 seconds, checking all services:
+  - Query aggregate metrics across all replicas
+  - Formula: can_scale_down = total_usage < threshold × (N - 1)
+  - If idle for 180 seconds: scale down by 1
+  - Conservative cooldown prevents premature scale-down
+Benefit: Automatic resource reclamation, completes autoscaling loop
+
+2.3 Web-Stress Test Application Architecture
+
+PURPOSE:
+Controllable test application that can stress CPU, memory, and network on
+demand with gradual ramp-up for realistic Grafana visualization.
+
+TECHNOLOGY STACK:
+- Framework: FastAPI (async Python web framework)
+- Base Image: python:3.11-slim
+- Dependencies:
+  - fastapi: Web framework
+  - uvicorn: ASGI server
+  - psutil: System metrics
+  - stress modules: Custom CPU/memory/network stress implementations
+
+API ENDPOINTS:
+
+1. GET /health
+   Purpose: Health check for Docker Swarm health checks
+   Response: {"status": "healthy", "uptime": 123}
+
+2. GET /metrics
+   Purpose: Current resource usage
+   Response: {
+     "cpu_percent": 45.5,
+     "memory_mb": 512,
+     "network_rx_mbps": 10.2,
+     "active_stress": ["cpu", "memory"]
+   }
+
+3. GET /stress/cpu?target=80&duration=120&ramp=30
+   Purpose: Gradual CPU stress test
+   Parameters:
+     - target: Target CPU percentage (0-100)
+     - duration: How long to maintain load (seconds)
+     - ramp: Gradual increase period (seconds)
+   Behavior:
+     - Spawns worker processes using multiprocessing
+     - Gradually increases from 0% to target% over ramp period
+     - Maintains target load for duration
+     - Releases processes after duration
+
+4. GET /stress/memory?target=1024&duration=120&ramp=30
+   Purpose: Gradual memory allocation
+   Parameters:
+     - target: Target memory in MB
+     - duration: Duration to hold allocation
+     - ramp: Gradual allocation period
+   Behavior:
+     - Allocates memory in chunks (10MB increments)
+     - Writes to allocated pages to prevent lazy allocation
+     - Maintains allocation for duration
+     - Releases memory after duration
+
+5. GET /stress/network?bandwidth=50&duration=120&ramp=30
+   Purpose: Network traffic generation
+   Parameters:
+     - bandwidth: Target Mbps
+     - duration: Duration
+     - ramp: Gradual ramp period
+   Behavior:
+     - Generates network traffic (self-loop or external endpoint)
+     - Gradually increases bandwidth
+     - Maintains target throughput
+
+6. GET /stress/combined?cpu=80&memory=1024&network=50&duration=120&ramp=30
+   Purpose: Simultaneous CPU + Memory + Network stress
+   Behavior: Runs all three stress types concurrently with synchronized ramp-up
+
+7. GET /stress/stop
+   Purpose: Stop all active stress tests immediately
+   Behavior: Terminates all worker processes, releases resources
+
+8. GET /compute/pi?iterations=10000000
+   Purpose: CPU-intensive computation for distributed load testing
+   Behavior: Calculates Pi using Monte Carlo method for N iterations
+   Use Case: Alpine Pi nodes send requests, Docker load balancer distributes
+             across replicas, CPU load evenly distributed (Attempt 27)
+
+GRADUAL RAMP-UP IMPLEMENTATION:
+Key feature that distinguishes this test app from simple stress tools.
+
+Why Gradual Ramp?
+- Allows observation of metric increase in Grafana in real-time
+- Mimics realistic application behavior under increasing load
+- Avoids sudden spikes that might trigger false positives
+- Enables precise threshold testing
+
+Example CPU Ramp Implementation:
+  def ramp_up_cpu(target_percent, ramp_seconds):
+      steps = ramp_seconds * 10  # 10 steps per second
+      increment = target_percent / steps
+      current = 0
+
+      for i in range(steps):
+          current += increment
+          adjust_cpu_load(current)
+          sleep(0.1)
+
+      # Maintain target load
+      maintain_cpu_load(target_percent, duration_seconds)
+
+2.4 Load Testing Infrastructure
+
+ALPINE PI CLUSTER (4 nodes):
+- Hardware: Raspberry Pi 1.2B+ (ARM architecture)
+- OS: Alpine Linux (minimal, lightweight)
+- Access: SSH aliases (alpine-1 through alpine-4)
+- Purpose: Distributed traffic generation for Scenario 2 testing
+
+LOAD TESTING SCRIPTS:
+
+1. alpine_scenario1_visualize.sh
+   Purpose: Verify zero-downtime migration through continuous traffic
+   Strategy:
+     - Trigger CPU stress on container (no network stress)
+     - Alpine nodes send continuous HTTP requests
+     - Monitor for failed requests (indicates downtime)
+     - Calculate uptime percentage per Alpine node
+   Expected: 100% uptime during migration (zero failed requests)
+
+2. alpine_scenario2_visualize.sh (Attempt 28 redesign)
+   Purpose: Visualize load distribution across scaled replicas
+   Strategy Phase 1 (Trigger Scale-Up):
+     - Send memory + network self-stress to container
+     - Alpine nodes send CPU-intensive /compute/pi requests
+     - Docker Swarm load balancer distributes requests across replicas
+     - Continuous traffic for 300 seconds
+   Strategy Phase 2 (Observe Distribution):
+     - Load automatically distributed as system scales 1→2→3 replicas
+     - Grafana shows CPU/Memory/Network split evenly across replicas
+   Key Insight: External traffic (Alpine requests) distributed by load balancer,
+                but internal stress (/stress/combined) is not distributed
+                (Attempt 27 realization)
+
+3. alpine_distributed_load.sh
+   Purpose: General purpose distributed traffic generator
+   Strategy:
+     - 4 Alpine nodes, configurable concurrent users per node
+     - Runs for configurable duration (default: 300s)
+     - Real-time monitoring of replica count
+     - Automatic cleanup
+
+CONFIGURABLE PARAMETERS (Attempt 25):
+  ./alpine_scenario2_visualize.sh [CPU] [MEMORY] [NETWORK] [RAMP] [USERS]
+
+Example Usage:
+  # Light load (1→2 replicas expected)
+  ./alpine_scenario2_visualize.sh 80 800 70 60 10
+
+  # Heavy load (3-4+ replicas expected)
+  ./alpine_scenario2_visualize.sh 90 1200 80 60 20
+
+Why Configurable?
+- Different load levels trigger different scaling behavior
+- Higher values → more replicas before cooldown stops scale-up
+- Gradual ramp (60s) allows observation in Grafana
+- Simulated users parameter controls traffic intensity
+
+================================================================================
+3. INFRASTRUCTURE DESIGN
+================================================================================
+
+3.1 Physical Infrastructure
+
+DOCKER SWARM CLUSTER (x86_64):
+
+Master Node (192.168.2.50):
+- Hostname: master
+- OS: Ubuntu 24.04.3 LTS
+- CPU: 8 cores
+- RAM: 15.56 GB
+- Disk: 215.99 GB
+- Network: enp5s0f0 (100Mbps)
+- Role: Swarm manager, runs recovery-manager service
+
+Worker Node 1 (192.168.2.51):
+- Hostname: worker-1
+- OS: Ubuntu 24.04.3 LTS
+- CPU: 4 cores
+- RAM: 7.64 GB
+- Disk: 106.47 GB
+- Network: eno1 (100Mbps)
+
+Worker Node 2 (192.168.2.52):
+- Hostname: worker-2
+- Status: Currently down (not used in testing)
+
+Worker Node 3 (192.168.2.53):
+- Hostname: worker-3
+- OS: Ubuntu 24.04.3 LTS
+- CPU: 8 cores
+- RAM: 15.58 GB
+- Disk: 114.84 GB
+- Network: enp2s0 (100Mbps)
+
+Worker Node 4 (192.168.2.54):
+- Hostname: worker-4
+- OS: Ubuntu 24.04.3 LTS
+- CPU: 8 cores
+- RAM: 15.54 GB
+- Disk: 912.81 GB
+- Network: eno1 (100Mbps)
+
+MONITORING NODE (ARM aarch64):
+- Hardware: Raspberry Pi
+- Hostname: worker-11
+- IP: 192.168.2.61
+- OS: Ubuntu 24.04.3 LTS
+- Services:
+  - InfluxDB (port 8086): Time-series metrics database
+  - Grafana (port 3000): Visualization dashboards
+- Purpose: Separate monitoring infrastructure (not in recovery critical path)
+
+LOAD TESTING CLUSTER (ARM):
+- 4× Raspberry Pi 1.2B+
+- OS: Alpine Linux
+- Access: ssh alpine-1 through ssh alpine-4
+- Purpose: Distributed traffic generation for realistic load testing
+
+3.2 Network Architecture
+
+CONSTRAINT: 100Mbps Ethernet
+All nodes connected via 100Mbps network (12.5 MB/s theoretical maximum).
+This constraint drove network optimization decisions throughout the project.
+
+NETWORK OPTIMIZATION STRATEGIES:
+
+1. Compact Alert Payloads (< 500 bytes):
+   {
+     "t": 1638360000,
+     "n": "worker-1",
+     "c": "abc123",
+     "s": "web",
+     "m": {"cpu": 85.5, "mem_mb": 1024, "mem_pct": 75.3,
+           "net_rx": 15.2, "net_tx": 10.5}
+   }
+   - No whitespace, short field names
+   - Transmission time: ~4ms at 100Mbps
+   - Priority: Must reach recovery manager in < 1 second
+
+2. Batched InfluxDB Writes:
+   - Collect 5-10 seconds of metrics
+   - Batch 10-20 metrics per HTTP request
+   - Use InfluxDB Line Protocol (more compact than JSON)
+   - Optional gzip compression
+   - Example batch size: 1-2KB compressed for 5 containers, 10 data points
+
+3. HTTP Keepalive Connections:
+   - Reuse connections between agents and recovery manager
+   - Avoid TCP handshake overhead
+   - Reduces latency for subsequent requests
+
+4. Bandwidth Budget Analysis:
+   Per-Node Traffic:
+   - Alert traffic: 1 alert per 10s @ 500 bytes = 50 bytes/s = 0.4 Kbps
+   - InfluxDB traffic: 20 containers × 200 bytes/10s = 400 bytes/s = 3.2 Kbps
+
+   Total Cluster (5 nodes):
+   - Monitoring overhead: 5 × (0.4 + 3.2) = 18 Kbps
+   - Percentage of 100Mbps: 0.02%
+   - Remaining for application traffic: 99.98%
+
+   Conclusion: Monitoring overhead negligible even on constrained network
+
+3.3 Docker Overlay Network
+
+SWARMGUARD-NET:
+- Type: Docker overlay network
+- Driver: overlay
+- Encrypted: Yes (default for overlay networks)
+- Attachable: Yes
+- Scope: Swarm
+
+Services on Network:
+- monitoring-agent-master
+- monitoring-agent-worker1
+- monitoring-agent-worker2 (if node available)
+- monitoring-agent-worker3
+- monitoring-agent-worker4
+- recovery-manager
+- web-stress (test application)
+
+WHY OVERLAY NETWORK?
+- Enables cross-node container communication
+- Automatic service discovery (containers reach each other by service name)
+- Built-in load balancing for replicated services
+- Encryption without performance overhead (on modern hardware)
+
+3.4 Private Container Registry
+
+Registry: docker-registry.amirmuz.com
+- Type: Private Docker registry
+- Authentication: None (internal network only)
+- Access: All cluster nodes have network access
+- Purpose: Host SwarmGuard container images
+
+Images Hosted:
+- swarmguard-agent:latest (Monitoring Agent)
+- swarmguard-manager:latest (Recovery Manager)
+- swarmguard-web-stress:latest (Test Application)
+
+BUILD AND PUSH WORKFLOW:
+1. Development: Code written on macOS
+2. Version Control: Push to GitHub
+3. Build Server: Ubuntu server pulls from GitHub
+4. Build: docker build on Ubuntu (x86_64 images)
+5. Push: docker push to private registry
+6. Deploy: Swarm cluster pulls from private registry
+
+================================================================================
+4. KEY DESIGN TRADEOFFS AND DECISIONS
+================================================================================
+
+4.1 Centralized vs Distributed Recovery Manager
+
+DECISION: Centralized recovery manager on master node
+
+ALTERNATIVES CONSIDERED:
+- Distributed consensus (Raft, Paxos)
+- Leader election among worker nodes
+- Fully decentralized peer-to-peer
+
+TRADEOFFS:
+Advantages of Centralized:
++ Simpler implementation (no consensus overhead)
++ Faster decision-making (no coordination delay)
++ Easier debugging and monitoring
++ Sufficient for 5-node cluster scale
+
+Disadvantages:
+- Single point of failure (if recovery manager crashes)
+- Master node becomes critical dependency
+- Doesn't scale to very large clusters
+
+MITIGATION:
+- Recovery manager is lightweight (< 5% CPU, < 100MB RAM)
+- Docker Swarm automatically restarts failed services
+- If recovery manager down, Docker Swarm's reactive recovery still works
+
+JUSTIFICATION:
+For academic project demonstrating proactive recovery concept, centralized
+approach provides optimal balance of simplicity and functionality.
+
+4.2 Threshold-Based vs Machine Learning
+
+DECISION: Simple threshold-based rule engine
+
+ALTERNATIVES CONSIDERED:
+- Machine learning anomaly detection
+- Time-series forecasting (ARIMA, LSTM)
+- Statistical process control
+
+TRADEOFFS:
+Advantages of Threshold-Based:
++ Interpretable and explainable (important for academic project)
++ No training data required
++ Deterministic behavior (easier to test and validate)
++ Fast decision-making (< 100ms)
++ Configurable by operators without ML expertise
+
+Disadvantages:
+- Requires manual threshold tuning
+- Cannot adapt to workload changes
+- May produce false positives or false negatives
+- No learning from historical patterns
+
+MITIGATION:
+- Consecutive breach requirement (2 breaches) reduces false positives
+- Configurable thresholds via YAML (can be tuned per deployment)
+- Cooldown periods prevent flapping
+
+JUSTIFICATION:
+Threshold-based approach achieves project objectives (zero-downtime, MTTR < 10s)
+while maintaining simplicity. ML would add complexity without proportional
+benefit for this scale and scope.
+
+4.3 Event-Driven vs Polling
+
+DECISION: Hybrid (event-driven alerts + continuous metrics)
+
+ALTERNATIVES CONSIDERED:
+- Pure polling (recovery manager queries InfluxDB periodically)
+- Pure event-driven (no continuous metrics)
+
+TRADEOFFS:
+Advantages of Hybrid:
++ Event-driven alerts achieve < 1 second latency
++ Continuous metrics provide observability
++ Separation allows independent failure modes
++ Optimal network utilization
+
+Disadvantages:
+- More complex architecture (two data paths)
+- Requires both HTTP alerts and InfluxDB writes
+- Additional code for event handling
+
+JUSTIFICATION:
+Hybrid approach necessary to meet < 1 second alert latency target while
+maintaining comprehensive observability for analysis and debugging.
+
+4.4 Migration vs Restart for Scenario 1
+
+DECISION: Migration (move container to different node)
+
+ALTERNATIVES CONSIDERED:
+- In-place restart (kill and restart on same node)
+- Restart with exponential backoff
+
+TRADEOFFS:
+Advantages of Migration:
++ Avoids problematic node (resource leak, hardware issue)
++ Zero downtime (new container before old removed)
++ Better resource utilization across cluster
+
+Disadvantages:
+- More complex implementation
+- Requires available capacity on other nodes
+- Network overhead for container image pull
+
+JUSTIFICATION:
+Migration addresses root cause (problematic node) rather than symptom. If node
+has underlying issue, in-place restart would likely fail again quickly.
+
+================================================================================
+END OF PART 2
+================================================================================

@@ -1,15 +1,15 @@
 #!/bin/bash
 # Alpine Pi Scenario 2 Load Test - Visualize Resource Distribution
-# Purpose: Generate traffic to trigger scale-up, then observe load distribution in Grafana
+# Purpose: Generate continuous traffic to trigger scale-up and observe load distribution in Grafana
 # Optimized for: Seeing CPU/MEM/NET split across multiple replicas
 #
 # Usage:
-#   ./alpine_scenario2_visualize.sh [CPU] [MEMORY] [NETWORK] [RAMP]
+#   ./alpine_scenario2_visualize.sh [CPU] [MEMORY] [NETWORK] [RAMP] [USERS]
 #
 # Examples:
-#   ./alpine_scenario2_visualize.sh                    # Default: CPU=85%, MEM=800MB, NET=70Mbps, RAMP=10s
-#   ./alpine_scenario2_visualize.sh 90 1200 80 60      # Heavy: CPU=90%, MEM=1.2GB, NET=80Mbps, RAMP=60s
-#   ./alpine_scenario2_visualize.sh 95 1500 85 60      # Very heavy: More replicas
+#   ./alpine_scenario2_visualize.sh                        # Default: 85% CPU, 800MB, 70Mbps, 10s ramp, 10 users
+#   ./alpine_scenario2_visualize.sh 90 1200 80 60 20       # Heavy: 90% CPU, 1.2GB, 80Mbps, 60s ramp, 20 users
+#   ./alpine_scenario2_visualize.sh 95 1500 85 60 30       # Very heavy: More replicas, 30 simulated users
 
 set -e
 
@@ -23,26 +23,32 @@ TARGET_CPU=${1:-85}        # Default 85%
 TARGET_MEMORY=${2:-800}    # Default 800MB
 TARGET_NETWORK=${3:-70}    # Default 70Mbps
 RAMP_TIME=${4:-10}         # Default 10s
+SIMULATED_USERS=${5:-10}   # Default 10 simulated users
 
 SERVICE_URL="http://192.168.2.50:8080"
 ALPINE_NODES=("alpine-1" "alpine-2" "alpine-3" "alpine-4")
-PHASE1_DURATION=120  # 2 min to trigger scale-up
-PHASE2_DURATION=180  # 3 min to observe distribution
-CONCURRENT=10        # Higher concurrency for CPU+NET load
+TOTAL_DURATION=300  # 5 min continuous traffic
+CONCURRENT=$SIMULATED_USERS  # Concurrent requests = simulated users
 
 echo "Stress Configuration:"
 echo "  CPU Target:     ${TARGET_CPU}%"
 echo "  Memory Target:  ${TARGET_MEMORY}MB"
 echo "  Network Target: ${TARGET_NETWORK}Mbps"
 echo "  Ramp Time:      ${RAMP_TIME}s"
+echo "  Simulated Users: $SIMULATED_USERS"
 echo ""
 
-echo "Test phases:"
-echo "  Phase 1: ${PHASE1_DURATION}s - Trigger scale-up (heavy load)"
-echo "  Phase 2: ${PHASE2_DURATION}s - Observe distribution (sustained load)"
+echo "Test approach:"
+echo "  Duration: ${TOTAL_DURATION}s continuous traffic from Alpine nodes"
+echo "  Alpine nodes: 4 (alpine-1, alpine-2, alpine-3, alpine-4)"
+echo "  Users per node: $CONCURRENT"
+echo "  Total simulated users: $((CONCURRENT * 4))"
 echo ""
-echo "Alpine nodes: ${#ALPINE_NODES[@]} (${ALPINE_NODES[@]})"
-echo "Concurrent per node: $CONCURRENT"
+echo "What happens:"
+echo "  1. Memory+Network stress triggers on containers"
+echo "  2. Alpine sends CONTINUOUS CPU-intensive traffic"
+echo "  3. As system scales up → traffic distributes across all replicas"
+echo "  4. Grafana shows real-time distribution"
 echo ""
 
 # Create Alpine load script with CPU-intensive distributed traffic
@@ -95,14 +101,7 @@ INITIAL_REPLICAS=$(ssh master "docker service ls --filter name=web-stress --form
 echo "  Replicas: $INITIAL_REPLICAS"
 echo ""
 
-# Phase 1: Heavy load to trigger scale-up
-echo "=========================================="
-echo "PHASE 1: Trigger Scale-Up (${PHASE1_DURATION}s)"
-echo "=========================================="
-echo ""
 # Calculate Pi iterations based on target CPU
-# Higher iterations = more CPU load per request
-# Estimate: 10M iterations ≈ 20-30% CPU on x86_64 for 1 second
 case "$TARGET_CPU" in
     [0-9]|[1-6][0-9]|7[0-4])  # 0-74%: Light load
         PI_ITERATIONS=5000000
@@ -118,128 +117,92 @@ case "$TARGET_CPU" in
         ;;
 esac
 
-echo "Step 1: Triggering memory+network stress on replicas..."
+echo "=========================================="
+echo "Starting Continuous Load Test"
+echo "=========================================="
+echo ""
+
+echo "[3/4] Step 1: Triggering memory+network stress..."
 echo "        Memory=${TARGET_MEMORY}MB, Network=${TARGET_NETWORK}Mbps, Ramp=${RAMP_TIME}s"
 echo ""
 
-# Trigger memory + network stress (NOT CPU - that comes from Alpine traffic)
+# Trigger memory + network stress
 echo "  Sending memory+network stress to replicas..."
 for i in $(seq 1 10); do
-    curl -s "$SERVICE_URL/stress/memory?target=$TARGET_MEMORY&duration=$PHASE1_DURATION&ramp=$RAMP_TIME" > /dev/null &
-    curl -s "$SERVICE_URL/stress/network?bandwidth=$TARGET_NETWORK&duration=$PHASE1_DURATION&ramp=$RAMP_TIME" > /dev/null &
+    curl -s "$SERVICE_URL/stress/memory?target=$TARGET_MEMORY&duration=$TOTAL_DURATION&ramp=$RAMP_TIME" > /dev/null &
+    curl -s "$SERVICE_URL/stress/network?bandwidth=$TARGET_NETWORK&duration=$TOTAL_DURATION&ramp=$RAMP_TIME" > /dev/null &
     sleep 0.5
 done
 wait
 
-echo "✓ Memory+Network stress activated (will ramp up over ${RAMP_TIME}s)"
+echo "✓ Memory+Network stress activated (${TOTAL_DURATION}s)"
 echo ""
 
-echo "Step 2: Generating CPU-intensive traffic from ${#ALPINE_NODES[@}} Alpine nodes..."
+echo "[4/4] Step 2: Starting CONTINUOUS CPU-intensive traffic from Alpine nodes..."
 echo "        Pi iterations: $PI_ITERATIONS per request"
-echo "        This traffic will be DISTRIBUTED across replicas → CPU split evenly"
-echo "Expected: CPU+MEM+NET high on all replicas → Scenario 2 scale-up"
+echo "        Simulated users: $((CONCURRENT * 4)) (${CONCURRENT} per Alpine node)"
+echo "        Duration: ${TOTAL_DURATION}s"
+echo ""
+echo "What to observe:"
+echo "  - Initial: All traffic goes to 1 replica → high CPU on one node"
+echo "  - After scale-up: Traffic automatically distributed → CPU split evenly"
+echo "  - Grafana: See load distribution in real-time"
 echo ""
 
 PIDS=()
 for node in "${ALPINE_NODES[@]}"; do
-    ssh $node "/tmp/alpine_scenario2.sh $SERVICE_URL $PHASE1_DURATION $CONCURRENT $PI_ITERATIONS" > /tmp/${node}_phase1.log 2>&1 &
+    ssh $node "/tmp/alpine_scenario2.sh $SERVICE_URL $TOTAL_DURATION $CONCURRENT $PI_ITERATIONS" > /tmp/${node}_traffic.log 2>&1 &
     PIDS+=($!)
 done
 
-# Monitor scale-up
-echo "Monitoring for scale-up..."
-for i in $(seq 1 12); do
-    sleep 10
-    CURRENT=$(ssh master "docker service ls --filter name=web-stress --format '{{.Replicas}}' | cut -d'/' -f1")
-    echo "[+${i}0s] Replicas: $CURRENT"
-
-    if [ "$CURRENT" -gt "$INITIAL_REPLICAS" ]; then
-        echo ""
-        echo "✓ SCALE-UP DETECTED: $INITIAL_REPLICAS → $CURRENT replicas"
-        SCALED_UP=1
-        break
-    fi
-done
-
-# Wait for Phase 1 to complete
-for pid in "${PIDS[@]}"; do
-    wait $pid 2>/dev/null || true
-done
-
-echo ""
-echo "Phase 1 complete"
-PHASE1_REPLICAS=$(ssh master "docker service ls --filter name=web-stress --format '{{.Replicas}}' | cut -d'/' -f1")
-echo "  Current replicas: $PHASE1_REPLICAS"
+echo "✓ Continuous traffic started from 4 Alpine nodes"
 echo ""
 
-# Phase 2: Sustained load to observe distribution
-echo "=========================================="
-echo "PHASE 2: Observe Load Distribution (${PHASE2_DURATION}s)"
-echo "=========================================="
-echo ""
-# Phase 2: Reduce stress to 70% of Phase 1 targets to maintain scale without triggering more scale-ups
-PHASE2_MEMORY=$((TARGET_MEMORY * 70 / 100))
-PHASE2_NETWORK=$((TARGET_NETWORK * 70 / 100))
-PHASE2_RAMP=$((RAMP_TIME / 2))
-PHASE2_PI_ITERATIONS=$((PI_ITERATIONS * 70 / 100))
-
-echo "Step 1: Activating moderate memory+network stress to maintain scale..."
-echo "        Memory=${PHASE2_MEMORY}MB, Network=${PHASE2_NETWORK}Mbps, Ramp=${PHASE2_RAMP}s"
-echo ""
-
-# Moderate memory + network stress
-echo "  Sending moderate memory+network stress to $PHASE1_REPLICAS replicas..."
-for i in $(seq 1 $((PHASE1_REPLICAS * 2))); do
-    curl -s "$SERVICE_URL/stress/memory?target=$PHASE2_MEMORY&duration=$PHASE2_DURATION&ramp=$PHASE2_RAMP" > /dev/null &
-    curl -s "$SERVICE_URL/stress/network?bandwidth=$PHASE2_NETWORK&duration=$PHASE2_DURATION&ramp=$PHASE2_RAMP" > /dev/null &
-    sleep 0.3
-done
-wait
-
-echo "✓ Moderate memory+network stress activated (70% of Phase 1 load)"
-echo ""
-
-echo "Step 2: Generating moderate CPU-intensive traffic from Alpine nodes..."
-echo "        Pi iterations: $PHASE2_PI_ITERATIONS per request (70% of Phase 1)"
-echo "        Traffic will be load-balanced across $PHASE1_REPLICAS replicas"
-echo ""
-echo "📊 OPEN GRAFANA NOW TO SEE DISTRIBUTION:"
+echo "📊 OPEN GRAFANA NOW TO SEE REAL-TIME DISTRIBUTION:"
 echo "   → http://192.168.2.61:3000"
 echo "   → Dashboard: Container Metrics"
 echo ""
-echo "   What you'll see in Grafana:"
-echo "   ✓ Multiple lines: web-stress.1, web-stress.2, web-stress.3, etc."
-echo "   ✓ Each replica on different worker node"
-echo "   ✓ CPU EVENLY DISTRIBUTED across $PHASE1_REPLICAS replicas (~${TARGET_CPU}%/$PHASE1_REPLICAS each)"
-echo "   ✓ Memory split across replicas"
-echo "   ✓ Network traffic distributed to all replicas"
-echo "   ✓ Docker Swarm load balancing in action!"
+echo "   What you'll see:"
+echo "   ✓ Initially: Single web-stress.1 with high CPU (~80%)"
+echo "   ✓ After scale-up: Multiple lines (web-stress.1, .2, .3, etc.)"
+echo "   ✓ CPU AUTOMATICALLY distributed across replicas"
+echo "   ✓ Memory + Network also distributed"
+echo "   ✓ Load balancing in action!"
 echo ""
 
-# Sustained CPU-intensive traffic to show distribution
-SUSTAINED_CONCURRENT=12  # Higher to ensure continuous load
+# Monitor scale-up and distribution
+echo "Monitoring (${TOTAL_DURATION}s)..."
+START_TIME=$(date +%s)
 
-PIDS=()
-for node in "${ALPINE_NODES[@]}"; do
-    ssh $node "/tmp/alpine_scenario2.sh $SERVICE_URL $PHASE2_DURATION $SUSTAINED_CONCURRENT $PHASE2_PI_ITERATIONS" > /tmp/${node}_phase2.log 2>&1 &
-    PIDS+=($!)
-done
+while true; do
+    sleep 15
+    CURRENT_TIME=$(date +%s)
+    ELAPSED=$((CURRENT_TIME - START_TIME))
 
-# Monitor distribution
-echo "Monitoring load distribution..."
-for i in $(seq 1 18); do
-    sleep 10
+    if [ $ELAPSED -ge $TOTAL_DURATION ]; then
+        break
+    fi
+
     CURRENT=$(ssh master "docker service ls --filter name=web-stress --format '{{.Replicas}}' | cut -d'/' -f1")
-    echo "[+${i}0s] Replicas: $CURRENT (check Grafana for distribution)"
+    echo "[+${ELAPSED}s] Replicas: $CURRENT (check Grafana for CPU/MEM/NET distribution)"
+
+    if [ "$CURRENT" -gt "$INITIAL_REPLICAS" ] && [ -z "$SCALE_UP_ANNOUNCED" ]; then
+        echo ""
+        echo "✓ SCALE-UP DETECTED: $INITIAL_REPLICAS → $CURRENT replicas"
+        echo "  → Traffic now distributed across $CURRENT replicas"
+        echo "  → Check Grafana to see CPU split evenly"
+        echo ""
+        SCALE_UP_ANNOUNCED=1
+    fi
 done
 
-# Wait for Phase 2 to complete
+# Wait for Alpine traffic to complete
 for pid in "${PIDS[@]}"; do
     wait $pid 2>/dev/null || true
 done
 
 echo ""
-echo "Phase 2 complete"
+echo "Continuous load test complete"
 echo ""
 
 # Show final state
