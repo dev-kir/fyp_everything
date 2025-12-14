@@ -73,8 +73,9 @@ for user_id in $(seq 1 $USERS); do
         while [ $(date +%s) -lt $END_TIME ]; do
             # User sends Pi calculation request
             # Docker Swarm distributes across replicas
-            wget -q -O /dev/null --timeout=5 "$SERVICE_URL/compute/pi?iterations=$ITERATIONS" 2>&1
-            USER_REQUESTS=$((USER_REQUESTS + 1))
+            if wget -q -O /dev/null --timeout=10 "$SERVICE_URL/compute/pi?iterations=$ITERATIONS" 2>&1; then
+                USER_REQUESTS=$((USER_REQUESTS + 1))
+            fi
 
             # Small sleep to prevent Alpine from overwhelming itself (0.05s = 20 req/sec per user)
             sleep 0.05
@@ -92,10 +93,13 @@ EOF
 # Deploy to Alpine nodes
 echo "[1/4] Deploying to Alpine nodes..."
 for node in "${ALPINE_NODES[@]}"; do
+    # Kill any existing test processes
+    ssh $node "pkill -f alpine_scenario2.sh || true"
+    # Deploy new script
     scp -q /tmp/alpine_scenario2.sh ${node}:/tmp/
     ssh $node "chmod +x /tmp/alpine_scenario2.sh"
 done
-echo "✓ Deployed"
+echo "✓ Deployed to ${#ALPINE_NODES[@]} nodes"
 echo ""
 
 # Get initial state
@@ -105,19 +109,19 @@ echo "  Replicas: $INITIAL_REPLICAS"
 echo ""
 
 # Calculate Pi iterations based on target CPU
-# Increased iterations for more CPU-intensive calculations
+# Balanced for sustained load without timeouts
 case "$TARGET_CPU" in
     [0-9]|[1-6][0-9]|7[0-4])  # 0-74%: Light load
         PI_ITERATIONS=10000000
         ;;
     7[5-9]|8[0-4])  # 75-84%: Medium load
-        PI_ITERATIONS=30000000
+        PI_ITERATIONS=20000000
         ;;
     8[5-9])  # 85-89%: Heavy load
-        PI_ITERATIONS=50000000
+        PI_ITERATIONS=30000000
         ;;
     9[0-9]|100)  # 90-100%: Very heavy load
-        PI_ITERATIONS=75000000
+        PI_ITERATIONS=40000000
         ;;
 esac
 
