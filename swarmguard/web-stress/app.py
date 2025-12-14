@@ -106,5 +106,52 @@ async def compute_pi(iterations: int = 1000000):
     }
 
 
+@app.get("/download/data")
+async def download_data(size_mb: int = 10, cpu_work: int = 100000):
+    """
+    Generate and serve data payload for download - creates REAL network traffic
+
+    Args:
+        size_mb: Size of data to generate in MB (creates real network load)
+        cpu_work: Number of Pi iterations to do while generating data (CPU load)
+
+    This endpoint:
+    - Generates real data that flows through Docker Swarm load balancer
+    - Does CPU work (Pi calculation) while generating the payload
+    - Consumes memory to hold the payload
+    - Creates measurable network traffic when Alpine downloads it
+    """
+    import random
+    from fastapi.responses import StreamingResponse
+    import io
+
+    # Do CPU-intensive work (Pi calculation)
+    inside_circle = 0
+    for _ in range(cpu_work):
+        x = random.random()
+        y = random.random()
+        if x*x + y*y <= 1:
+            inside_circle += 1
+
+    # Generate data payload (creates memory + network load)
+    # Each MB = 1,048,576 bytes
+    chunk_size = 1024 * 1024  # 1 MB chunks
+
+    def generate_data():
+        for _ in range(size_mb):
+            # Generate random data chunk
+            yield b'X' * chunk_size
+
+    return StreamingResponse(
+        generate_data(),
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f"attachment; filename=data_{size_mb}mb.bin",
+            "X-CPU-Work": str(cpu_work),
+            "X-Data-Size": f"{size_mb}MB"
+        }
+    )
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
