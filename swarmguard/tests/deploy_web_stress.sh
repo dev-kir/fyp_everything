@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy web-stress test application
+# Build and deploy web-stress test application
 
 set -e
 
@@ -7,8 +7,22 @@ REGISTRY="docker-registry.amirmuz.com"
 IMAGE="${REGISTRY}/swarmguard-web-stress:latest"
 REPLICAS=${1:-1}  # Default to 1 replica
 
-echo "Deploying web-stress application with ${REPLICAS} replica(s)..."
+echo "==========================================="
+echo "Building and Deploying web-stress"
+echo "==========================================="
+echo ""
 
+# Step 1: Build Docker image
+echo "[1/4] Building Docker image..."
+cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/web-stress
+docker build -t ${IMAGE} .
+
+echo ""
+echo "[2/4] Pushing to registry..."
+docker push ${IMAGE}
+
+echo ""
+echo "[3/4] Deploying to Docker Swarm..."
 ssh master "docker service create \
   --name web-stress \
   --replicas ${REPLICAS} \
@@ -23,24 +37,34 @@ ssh master "docker service create \
   --health-timeout 3s \
   ${IMAGE}"
 
-echo "✅ Web-stress application deployed!"
-echo "Waiting for service to be ready..."
-sleep 10
+echo ""
+echo "[4/4] Waiting for service to be ready..."
+sleep 15
 
+echo ""
 echo "Verifying deployment..."
 ssh master "docker service ls | grep web-stress"
 ssh master "docker service ps web-stress"
 
 echo ""
 echo "Testing application endpoints..."
-echo "Health: "
-curl -s http://192.168.2.50:8080/health | jq .
 echo ""
-echo "Metrics:"
+echo "Test 1: Health check"
+curl -s http://192.168.2.50:8080/health | jq .
+
+echo ""
+echo "Test 2: Metrics"
 curl -s http://192.168.2.50:8080/metrics | jq .
 
 echo ""
-echo "✅ Web-stress application is ready!"
+echo "Test 3: New /stress/incremental endpoint"
+curl -s "http://192.168.2.50:8080/stress/incremental?cpu=1&memory=10&network=1&duration=5&ramp=2" | jq .
+
+echo ""
+echo "==========================================="
+echo "✅ Web-stress deployed successfully!"
+echo "==========================================="
+echo ""
 echo "Available endpoints:"
 echo "  - http://192.168.2.50:8080/health"
 echo "  - http://192.168.2.50:8080/metrics"
@@ -48,4 +72,10 @@ echo "  - http://192.168.2.50:8080/stress/cpu?target=80&duration=120&ramp=30"
 echo "  - http://192.168.2.50:8080/stress/memory?target=1024&duration=120&ramp=30"
 echo "  - http://192.168.2.50:8080/stress/network?bandwidth=50&duration=120&ramp=30"
 echo "  - http://192.168.2.50:8080/stress/combined?cpu=80&memory=1024&network=50&duration=120&ramp=30"
+echo "  - http://192.168.2.50:8080/stress/incremental?cpu=2&memory=50&network=5&duration=120&ramp=60  ← NEW!"
 echo "  - http://192.168.2.50:8080/stress/stop"
+echo ""
+echo "Test Scenario 2 with:"
+echo "  cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests"
+echo "  ./alpine_scenario2_incremental.sh 10 2 50 5 60 120"
+echo ""
