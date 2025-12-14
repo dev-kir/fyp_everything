@@ -1,15 +1,15 @@
 #!/bin/bash
 # Alpine Pi Scenario 2 Load Test - Visualize Resource Distribution
-# Purpose: Generate continuous traffic to trigger scale-up and observe load distribution in Grafana
-# Optimized for: Seeing CPU/MEM/NET split across multiple replicas
+# Purpose: Simulate continuous user traffic to trigger scale-up and observe load distribution in Grafana
+# Each user = infinite request loop until duration expires (no batches, truly continuous)
 #
 # Usage:
 #   ./alpine_scenario2_visualize.sh [CPU] [MEMORY] [NETWORK] [RAMP] [USERS]
 #
 # Examples:
-#   ./alpine_scenario2_visualize.sh                        # Default: 85% CPU, 800MB, 70Mbps, 10s ramp, 10 users
-#   ./alpine_scenario2_visualize.sh 90 1200 80 60 20       # Heavy: 90% CPU, 1.2GB, 80Mbps, 60s ramp, 20 users
-#   ./alpine_scenario2_visualize.sh 95 1500 85 60 30       # Very heavy: More replicas, 30 simulated users
+#   ./alpine_scenario2_visualize.sh                        # Default: 85% CPU, 800MB, 70Mbps, 10s ramp, 10 users/node
+#   ./alpine_scenario2_visualize.sh 90 1200 80 60 20       # Heavy: 90% CPU, 1.2GB, 80Mbps, 60s ramp, 20 users/node
+#   ./alpine_scenario2_visualize.sh 95 1500 85 60 30       # Very heavy: More replicas, 30 users/node
 
 set -e
 
@@ -28,7 +28,7 @@ SIMULATED_USERS=${5:-10}   # Default 10 simulated users
 SERVICE_URL="http://192.168.2.50:8080"
 ALPINE_NODES=("alpine-1" "alpine-2" "alpine-3" "alpine-4")
 TOTAL_DURATION=300  # 5 min continuous traffic
-CONCURRENT=$SIMULATED_USERS  # Concurrent requests = simulated users
+USERS_PER_NODE=$SIMULATED_USERS  # Simulated users per Alpine node
 
 echo "Stress Configuration:"
 echo "  CPU Target:     ${TARGET_CPU}%"
@@ -41,8 +41,8 @@ echo ""
 echo "Test approach:"
 echo "  Duration: ${TOTAL_DURATION}s continuous traffic from Alpine nodes"
 echo "  Alpine nodes: 4 (alpine-1, alpine-2, alpine-3, alpine-4)"
-echo "  Users per node: $CONCURRENT"
-echo "  Total simulated users: $((CONCURRENT * 4))"
+echo "  Users per node: $USERS_PER_NODE"
+echo "  Total simulated users: $((USERS_PER_NODE * 4))"
 echo ""
 echo "What happens:"
 echo "  1. Memory+Network stress triggers on containers"
@@ -54,36 +54,39 @@ echo ""
 # Create Alpine load script with CPU-intensive distributed traffic
 cat > /tmp/alpine_scenario2.sh << 'EOF'
 #!/bin/sh
-# Generates CPU-intensive distributed HTTP traffic to trigger load balancing
-# Each request causes CPU load on the container that handles it
+# Simulates N concurrent users sending CONTINUOUS requests
+# Each user = infinite loop until duration expires
+# No batches, no gaps - truly continuous traffic for distribution visibility
 SERVICE_URL="$1"
 DURATION="$2"
-CONCURRENT="$3"
+USERS="$3"
 ITERATIONS="$4"
 
-echo "[$HOSTNAME] Starting CPU-intensive distributed traffic..."
+echo "[$HOSTNAME] Starting $USERS simulated users for ${DURATION}s..."
 END_TIME=$(($(date +%s) + DURATION))
-COUNT=0
+TOTAL_REQUESTS=0
 
-while [ $(date +%s) -lt $END_TIME ]; do
-    # Launch concurrent CPU-intensive requests in background
-    for i in $(seq 1 $CONCURRENT); do
-        (
-            # CPU-intensive Pi calculation - Docker Swarm distributes to replicas
-            # Each replica that handles request will show CPU spike
+# Launch N users (background processes)
+for user_id in $(seq 1 $USERS); do
+    (
+        USER_REQUESTS=0
+        while [ $(date +%s) -lt $END_TIME ]; do
+            # User sends Pi calculation request
+            # Docker Swarm distributes across replicas
             wget -q -O /dev/null "$SERVICE_URL/compute/pi?iterations=$ITERATIONS" 2>&1
-        ) &
-    done
+            USER_REQUESTS=$((USER_REQUESTS + 1))
 
-    # Wait for batch
-    wait
-    COUNT=$((COUNT + CONCURRENT))
-
-    # Brief pause between batches
-    sleep 0.1
+            # Small delay to simulate human user (adjust for load)
+            sleep 0.1
+        done
+        echo "  User $user_id completed $USER_REQUESTS requests"
+    ) &
 done
 
-echo "[$HOSTNAME] Completed $COUNT requests"
+# Wait for all users to complete
+wait
+
+echo "[$HOSTNAME] All $USERS users completed"
 EOF
 
 # Deploy to Alpine nodes
@@ -140,18 +143,19 @@ echo ""
 
 echo "[4/4] Step 2: Starting CONTINUOUS CPU-intensive traffic from Alpine nodes..."
 echo "        Pi iterations: $PI_ITERATIONS per request"
-echo "        Simulated users: $((CONCURRENT * 4)) (${CONCURRENT} per Alpine node)"
+echo "        Simulated users: $((USERS_PER_NODE * 4)) (${USERS_PER_NODE} per Alpine node)"
 echo "        Duration: ${TOTAL_DURATION}s"
 echo ""
 echo "What to observe:"
-echo "  - Initial: All traffic goes to 1 replica → high CPU on one node"
-echo "  - After scale-up: Traffic automatically distributed → CPU split evenly"
-echo "  - Grafana: See load distribution in real-time"
+echo "  - Initial: All $((USERS_PER_NODE * 4)) users → 1 replica → high CPU on one node"
+echo "  - After scale-up: Same users → distributed across replicas → CPU split evenly"
+echo "  - Continuous requests = immediate distribution visibility in Grafana"
+echo "  - Each user sends non-stop requests until ${TOTAL_DURATION}s expires"
 echo ""
 
 PIDS=()
 for node in "${ALPINE_NODES[@]}"; do
-    ssh $node "/tmp/alpine_scenario2.sh $SERVICE_URL $TOTAL_DURATION $CONCURRENT $PI_ITERATIONS" > /tmp/${node}_traffic.log 2>&1 &
+    ssh $node "/tmp/alpine_scenario2.sh $SERVICE_URL $TOTAL_DURATION $USERS_PER_NODE $PI_ITERATIONS" > /tmp/${node}_traffic.log 2>&1 &
     PIDS+=($!)
 done
 
