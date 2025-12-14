@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build and deploy web-stress test application
+# Deploy web-stress test application (pulls from registry)
 
 set -e
 
@@ -8,21 +8,11 @@ IMAGE="${REGISTRY}/swarmguard-web-stress:latest"
 REPLICAS=${1:-1}  # Default to 1 replica
 
 echo "==========================================="
-echo "Building and Deploying web-stress"
+echo "Deploying web-stress"
 echo "==========================================="
 echo ""
 
-# Step 1: Build Docker image
-echo "[1/4] Building Docker image..."
-cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/web-stress
-docker build -t ${IMAGE} .
-
-echo ""
-echo "[2/4] Pushing to registry..."
-docker push ${IMAGE}
-
-echo ""
-echo "[3/4] Deploying to Docker Swarm..."
+echo "[1/2] Deploying to Docker Swarm..."
 ssh master "docker service create \
   --name web-stress \
   --replicas ${REPLICAS} \
@@ -38,7 +28,7 @@ ssh master "docker service create \
   ${IMAGE}"
 
 echo ""
-echo "[4/4] Waiting for service to be ready..."
+echo "[2/2] Waiting for service to be ready..."
 sleep 15
 
 echo ""
