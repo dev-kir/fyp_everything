@@ -153,5 +153,118 @@ async def download_data(size_mb: int = 10, cpu_work: int = 100000):
     )
 
 
+@app.get("/stress/incremental")
+async def incremental_stress(
+    cpu: int = 2,        # CPU% to ADD per request
+    memory: int = 50,    # MB to ADD per request
+    network: int = 5,    # Mbps to ADD per request
+    duration: int = 120, # How long to hold resources
+    ramp: int = 60       # Ramp-up time in seconds
+):
+    """
+    Incremental stress endpoint - each request ADDS load instead of setting absolute targets.
+
+    This allows simulating N users where aggregate load = N × per-request contribution.
+
+    Example: 40 users each call /stress/incremental?cpu=2&memory=50&network=5&duration=120&ramp=60
+    Result: 80% CPU, 2000MB RAM, 200Mbps network (aggregate)
+
+    Each request runs in background thread and auto-releases after duration.
+    """
+    import requests
+
+    def run_incremental_stress():
+        try:
+            # Allocate memory
+            allocated_memory = []
+            chunk_size_mb = 10
+            total_chunks = memory // chunk_size_mb
+            chunks_per_step = max(1, total_chunks // ramp) if ramp > 0 else total_chunks
+
+            # CPU burn function
+            def cpu_burn(percent, stop_at):
+                while time.time() < stop_at:
+                    start = time.time()
+                    end = start + (percent / 100.0)
+                    while time.time() < end:
+                        _ = 2 ** 1000  # CPU-intensive calculation
+                    sleep_time = max(0, 1.0 - (time.time() - start))
+                    if sleep_time > 0:
+                        time.sleep(sleep_time)
+
+            # Network traffic function
+            def network_traffic(mbps, stop_at):
+                target_url = "http://192.168.2.50:8080/health"
+                chunk_size = 1024 * 1024  # 1MB
+                while time.time() < stop_at:
+                    try:
+                        requests_per_sec = max(1, mbps / 8)
+                        delay = 1.0 / requests_per_sec
+                        data = b'X' * chunk_size
+                        requests.post(target_url, data=data, timeout=2)
+                        time.sleep(delay)
+                    except:
+                        pass
+
+            stop_time = time.time() + duration
+
+            # Ramp up memory gradually
+            if ramp > 0:
+                for step in range(ramp):
+                    if time.time() >= stop_time:
+                        break
+                    for _ in range(chunks_per_step):
+                        try:
+                            chunk = bytearray(chunk_size_mb * 1024 * 1024)
+                            for i in range(0, len(chunk), 4096):
+                                chunk[i] = 1
+                            allocated_memory.append(chunk)
+                        except MemoryError:
+                            break
+                    time.sleep(1)
+            else:
+                # No ramp, allocate immediately
+                for _ in range(total_chunks):
+                    try:
+                        chunk = bytearray(chunk_size_mb * 1024 * 1024)
+                        for i in range(0, len(chunk), 4096):
+                            chunk[i] = 1
+                        allocated_memory.append(chunk)
+                    except MemoryError:
+                        break
+
+            # Start CPU and network threads
+            cpu_thread = Thread(target=cpu_burn, args=(cpu, stop_time))
+            network_thread = Thread(target=network_traffic, args=(network, stop_time))
+
+            cpu_thread.start()
+            network_thread.start()
+
+            # Wait for duration
+            time.sleep(duration)
+
+            # Cleanup
+            cpu_thread.join(timeout=2)
+            network_thread.join(timeout=2)
+            allocated_memory.clear()
+
+        except Exception as e:
+            logger.error(f"Incremental stress error: {e}")
+
+    # Run in background thread
+    thread = Thread(target=run_incremental_stress, daemon=True)
+    thread.start()
+
+    return {
+        "status": "started",
+        "cpu_add": f"{cpu}%",
+        "memory_add": f"{memory}MB",
+        "network_add": f"{network}Mbps",
+        "duration": f"{duration}s",
+        "ramp": f"{ramp}s",
+        "message": "Incremental stress running in background"
+    }
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
