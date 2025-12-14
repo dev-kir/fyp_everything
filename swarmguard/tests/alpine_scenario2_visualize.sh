@@ -45,10 +45,10 @@ echo "  Users per node: $USERS_PER_NODE"
 echo "  Total simulated users: $((USERS_PER_NODE * 4))"
 echo ""
 echo "What happens:"
-echo "  1. Memory+Network stress triggers on containers"
-echo "  2. Alpine sends CONTINUOUS CPU-intensive traffic"
-echo "  3. As system scales up → traffic distributes across all replicas"
-echo "  4. Grafana shows real-time distribution"
+echo "  1. Alpine sends CONTINUOUS CPU-intensive traffic (20 req/sec per user)"
+echo "  2. High sustained load → triggers scale-up based on CPU/Memory"
+echo "  3. Traffic CONTINUES after scale-up → AUTOMATICALLY distributes across replicas"
+echo "  4. Grafana shows CPU/MEM/NET distributed in real-time"
 echo ""
 
 # Create Alpine load script with CPU-intensive distributed traffic
@@ -73,11 +73,11 @@ for user_id in $(seq 1 $USERS); do
         while [ $(date +%s) -lt $END_TIME ]; do
             # User sends Pi calculation request
             # Docker Swarm distributes across replicas
-            wget -q -O /dev/null "$SERVICE_URL/compute/pi?iterations=$ITERATIONS" 2>&1
+            wget -q -O /dev/null --timeout=5 "$SERVICE_URL/compute/pi?iterations=$ITERATIONS" 2>&1
             USER_REQUESTS=$((USER_REQUESTS + 1))
 
-            # Very small delay for high concurrency (10ms instead of 100ms)
-            sleep 0.01
+            # Small sleep to prevent Alpine from overwhelming itself (0.05s = 20 req/sec per user)
+            sleep 0.05
         done
         echo "  User $user_id completed $USER_REQUESTS requests"
     ) &
@@ -105,18 +105,19 @@ echo "  Replicas: $INITIAL_REPLICAS"
 echo ""
 
 # Calculate Pi iterations based on target CPU
+# Increased iterations for more CPU-intensive calculations
 case "$TARGET_CPU" in
     [0-9]|[1-6][0-9]|7[0-4])  # 0-74%: Light load
-        PI_ITERATIONS=5000000
-        ;;
-    7[5-9]|8[0-4])  # 75-84%: Medium load
         PI_ITERATIONS=10000000
         ;;
+    7[5-9]|8[0-4])  # 75-84%: Medium load
+        PI_ITERATIONS=30000000
+        ;;
     8[5-9])  # 85-89%: Heavy load
-        PI_ITERATIONS=15000000
+        PI_ITERATIONS=50000000
         ;;
     9[0-9]|100)  # 90-100%: Very heavy load
-        PI_ITERATIONS=20000000
+        PI_ITERATIONS=75000000
         ;;
 esac
 
@@ -125,23 +126,7 @@ echo "Starting Continuous Load Test"
 echo "=========================================="
 echo ""
 
-echo "[3/4] Step 1: Triggering memory+network stress..."
-echo "        Memory=${TARGET_MEMORY}MB, Network=${TARGET_NETWORK}Mbps, Ramp=${RAMP_TIME}s"
-echo ""
-
-# Trigger memory + network stress
-echo "  Sending memory+network stress to replicas..."
-for i in $(seq 1 10); do
-    curl -s "$SERVICE_URL/stress/memory?target=$TARGET_MEMORY&duration=$TOTAL_DURATION&ramp=$RAMP_TIME" > /dev/null &
-    curl -s "$SERVICE_URL/stress/network?bandwidth=$TARGET_NETWORK&duration=$TOTAL_DURATION&ramp=$RAMP_TIME" > /dev/null &
-    sleep 0.5
-done
-wait
-
-echo "✓ Memory+Network stress activated (${TOTAL_DURATION}s)"
-echo ""
-
-echo "[4/4] Step 2: Starting CONTINUOUS CPU-intensive traffic from Alpine nodes..."
+echo "[3/4] Starting CONTINUOUS CPU-intensive traffic from Alpine nodes..."
 echo "        Pi iterations: $PI_ITERATIONS per request"
 echo "        Simulated users: $((USERS_PER_NODE * 4)) (${USERS_PER_NODE} per Alpine node)"
 echo "        Duration: ${TOTAL_DURATION}s"
