@@ -1769,6 +1769,76 @@ cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
 
 ---
 
+### Attempt 10: Fix Alpine Test Script - Incremental Load Endpoint
+**Date:** December 14, 2025
+**Problem:** User wanted per-user resource contribution model (e.g., "10 users × 2% CPU = 20% total"), but existing `/stress/combined` endpoint uses system-wide targets, not per-request increments.
+
+**Previous Failed Approaches:**
+1. `/stress/combined?cpu=2&memory=50&network=10` called by 40 users → CPU goes to 100% (not controlled)
+2. Network stress generates internal traffic (not visible in Grafana)
+3. Aggregate load ≠ expected load (64% expected, 100% actual)
+
+**Root Cause Analysis:**
+- `CPUStressor.start_stress(target=2)` spawns processes to achieve 2% **system-wide**, not 2% **per-request**
+- When 32 concurrent users call this, processes overlap and interfere
+- `NetworkStressor` makes internal HTTP POST to `/health` - doesn't flow through Docker Swarm's external interface (eth0)
+
+**Solution Implemented:**
+Created new `/stress/incremental` endpoint in `app.py` (lines 156-266):
+
+**Key Features:**
+1. **Per-request resource contribution**: Each request **adds** X% CPU + Y MB RAM + Z Mbps network
+2. **Background threading**: Each request runs in its own daemon thread
+3. **Auto-cleanup**: Resources automatically release after `duration` seconds
+4. **Aggregate load**: 40 users × 2% CPU = 80% total (predictable)
+5. **Gradual ramp-up**: Resources ramp over `ramp` seconds to prevent instant spikes
+
+**Implementation:**
+```python
+@app.get("/stress/incremental")
+async def incremental_stress(cpu, memory, network, duration, ramp):
+    # Each request spawns background thread
+    # Thread allocates memory + burns CPU + generates network traffic
+    # Resources held for duration, then auto-released
+```
+
+**Test Script:** `alpine_scenario2_incremental.sh`
+**Usage:**
+```bash
+./alpine_scenario2_incremental.sh [USERS] [CPU%] [MEMORY_MB] [NETWORK_MBPS] [RAMP] [DURATION]
+```
+
+**Example:**
+```bash
+./alpine_scenario2_incremental.sh 10 2 50 5 60 120
+```
+- 10 users per Alpine × 4 Alpines = 40 total users
+- Each user: 2% CPU, 50MB RAM, 5Mbps network
+- Expected aggregate: 80% CPU, 2000MB RAM, 200Mbps network
+- Ramp over 60s, hold for 120s
+
+**Expected Behavior:**
+1. All 40 users trigger `/stress/incremental` simultaneously
+2. Load ramps up over 60s → reaches 80% CPU, 2000MB RAM, 200Mbps NET
+3. Recovery manager detects high CPU + MEM + NET → triggers Scenario 2 scale-up
+4. Load distributes across replicas (visible in Grafana)
+5. After 120s, resources auto-release
+
+**Status:** ⏳ READY FOR TESTING (need to rebuild web-stress image)
+
+**Next Steps:**
+1. Rebuild web-stress Docker image
+2. Push to registry
+3. Update web-stress service
+4. Test with: `./alpine_scenario2_incremental.sh 10 2 50 5 60 120`
+5. Verify in Grafana that load distributes correctly
+
+**Code References:**
+- [app.py:156-266](/Users/amirmuz/code/claude_code/fyp_everything/swarmguard/web-stress/app.py#L156-L266) - New incremental endpoint
+- [alpine_scenario2_incremental.sh](/Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests/alpine_scenario2_incremental.sh) - Test script
+
+---
+
 ## Performance Targets
 
 | Metric | Target | Current Status |
@@ -1790,3 +1860,20 @@ cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
 - [PRD.md](PRD.md) - Original requirements
 - [docker_controller.py](../swarmguard/recovery-manager/docker_controller.py) - Migration logic
 - [Docker Swarm API Docs](https://docs.docker.com/engine/api/v1.43/)
+
+**Deployment Update (Final):**
+- ✅ Removed `rebuild_and_update.sh` (no longer needed)
+- ✅ Updated `deploy_web_stress.sh` to build from scratch
+- ✅ Now integrates into user's standard deployment workflow
+
+**Deployment Command:**
+```bash
+./tests/deploy_web_stress.sh  # Builds, pushes, deploys with new endpoint
+```
+
+**Test Command:**
+```bash
+./alpine_scenario2_incremental.sh 10 2 50 5 60 120
+# 40 users: 80% CPU, 2000MB RAM, 200Mbps NET
+```
+
