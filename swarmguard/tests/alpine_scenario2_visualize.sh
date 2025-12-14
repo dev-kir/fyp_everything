@@ -76,8 +76,8 @@ for user_id in $(seq 1 $USERS); do
             wget -q -O /dev/null "$SERVICE_URL/compute/pi?iterations=$ITERATIONS" 2>&1
             USER_REQUESTS=$((USER_REQUESTS + 1))
 
-            # Small delay to simulate human user (adjust for load)
-            sleep 0.1
+            # Very small delay for high concurrency (10ms instead of 100ms)
+            sleep 0.01
         done
         echo "  User $user_id completed $USER_REQUESTS requests"
     ) &
