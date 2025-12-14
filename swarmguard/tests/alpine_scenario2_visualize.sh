@@ -73,12 +73,10 @@ for user_id in $(seq 1 $USERS); do
         while [ $(date +%s) -lt $END_TIME ]; do
             # User sends Pi calculation request
             # Docker Swarm distributes across replicas
-            if wget -q -O /dev/null --timeout=10 "$SERVICE_URL/compute/pi?iterations=$ITERATIONS" 2>&1; then
-                USER_REQUESTS=$((USER_REQUESTS + 1))
-            fi
+            wget -q -O /dev/null --timeout=5 "$SERVICE_URL/compute/pi?iterations=$ITERATIONS" 2>&1 && USER_REQUESTS=$((USER_REQUESTS + 1))
 
-            # Small sleep to prevent Alpine from overwhelming itself (0.05s = 20 req/sec per user)
-            sleep 0.05
+            # Minimal sleep - let requests complete naturally
+            sleep 0.1
         done
         echo "  User $user_id completed $USER_REQUESTS requests"
     ) &
@@ -108,20 +106,20 @@ INITIAL_REPLICAS=$(ssh master "docker service ls --filter name=web-stress --form
 echo "  Replicas: $INITIAL_REPLICAS"
 echo ""
 
-# Calculate Pi iterations - LIGHT requests that complete quickly
-# Many small requests >> Few heavy requests (avoid timeouts)
+# Calculate Pi iterations - Balanced for visible CPU load
+# Targeting 500ms-1s per request for ~10-20% CPU per concurrent user
 case "$TARGET_CPU" in
     [0-9]|[1-6][0-9]|7[0-4])  # 0-74%: Light load
-        PI_ITERATIONS=1000000
+        PI_ITERATIONS=5000000
         ;;
     7[5-9]|8[0-4])  # 75-84%: Medium load
-        PI_ITERATIONS=2000000
+        PI_ITERATIONS=10000000
         ;;
     8[5-9])  # 85-89%: Heavy load
-        PI_ITERATIONS=3000000
+        PI_ITERATIONS=15000000
         ;;
     9[0-9]|100)  # 90-100%: Very heavy load
-        PI_ITERATIONS=5000000
+        PI_ITERATIONS=20000000
         ;;
 esac
 
