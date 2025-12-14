@@ -108,20 +108,20 @@ INITIAL_REPLICAS=$(ssh master "docker service ls --filter name=web-stress --form
 echo "  Replicas: $INITIAL_REPLICAS"
 echo ""
 
-# Calculate Pi iterations based on target CPU
-# Balanced for sustained load without timeouts
+# Calculate Pi iterations - LIGHT requests that complete quickly
+# Many small requests >> Few heavy requests (avoid timeouts)
 case "$TARGET_CPU" in
     [0-9]|[1-6][0-9]|7[0-4])  # 0-74%: Light load
-        PI_ITERATIONS=10000000
+        PI_ITERATIONS=1000000
         ;;
     7[5-9]|8[0-4])  # 75-84%: Medium load
-        PI_ITERATIONS=20000000
+        PI_ITERATIONS=2000000
         ;;
     8[5-9])  # 85-89%: Heavy load
-        PI_ITERATIONS=30000000
+        PI_ITERATIONS=3000000
         ;;
     9[0-9]|100)  # 90-100%: Very heavy load
-        PI_ITERATIONS=40000000
+        PI_ITERATIONS=5000000
         ;;
 esac
 
