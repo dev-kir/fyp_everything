@@ -79,5 +79,32 @@ async def stop_stress():
     return {"status": "stopped", "stopped_tests": ["cpu", "memory", "network"]}
 
 
+@app.get("/compute/pi")
+async def compute_pi(iterations: int = 1000000):
+    """
+    Calculate Pi using Monte Carlo method - CPU-intensive operation
+    Used for generating distributed load across replicas
+    """
+    import random
+
+    inside_circle = 0
+    total_points = iterations
+
+    for _ in range(total_points):
+        x = random.random()
+        y = random.random()
+
+        if x*x + y*y <= 1:
+            inside_circle += 1
+
+    pi_estimate = (inside_circle / total_points) * 4
+
+    return {
+        "pi_estimate": pi_estimate,
+        "iterations": iterations,
+        "status": "completed"
+    }
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
