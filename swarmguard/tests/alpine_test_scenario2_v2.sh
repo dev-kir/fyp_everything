@@ -120,9 +120,10 @@ for alpine in "${ALPINE_NODES[@]}"; do
                 sleep \$START_DELAY
 
                 # Single long-running request for full test duration
-                # Each user contributes fixed CPU/MEM/NET for entire duration
+                # Use /stress/combined with target percentages
+                # Calculate total target and divide by number of concurrent users for per-request contribution
                 wget -q -O /dev/null \\
-                    "${SERVICE_URL}/stress/incremental?cpu=${CPU_PER_USER}&memory=${MEMORY_PER_USER}&network=${NETWORK_PER_USER}&duration=${TEST_DURATION}&ramp=1" \\
+                    "${SERVICE_URL}/stress/combined?cpu=${CPU_PER_USER}&memory=${MEMORY_PER_USER}&network=${NETWORK_PER_USER}&duration=${TEST_DURATION}&ramp=${RAMP_TIME}" \\
                     2>/dev/null || true
             ) &
         done
