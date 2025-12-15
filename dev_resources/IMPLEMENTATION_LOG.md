@@ -2041,3 +2041,77 @@ duration=10&ramp=8  # CPU ramps over 80% of request duration
 
 **Status:** ✅ Ready for testing with gradual ramp
 
+---
+
+## Scenario 2 Testing - Staggered User Startup for True Gradual Ramp
+
+**Date:** December 16, 2025
+**Issue:** CPU still spiking to 100% immediately despite per-request ramp settings
+
+### Root Cause Discovery
+
+**User feedback:** "can make it take time like 45s to reach 100% for cpu?"
+
+**Problem:** All previous attempts modified the ramp-up **per request**, but all 60 users were starting **simultaneously**:
+- Even with gradual ramp per request, 60 users × 3% CPU = instant 180% load
+- All requests hit at once → CPU spikes immediately to 100%
+- No time for load balancer to distribute before saturation
+
+### Solution: Staggered User Startup
+
+Instead of all users starting at T+0s, spread user startup over the RAMP period.
+
+**Example with 15 users, 60s ramp:**
+```
+T+0s:  User 1 starts  → 3% CPU
+T+4s:  User 2 starts  → 6% CPU
+T+8s:  User 3 starts  → 9% CPU
+...
+T+60s: User 15 starts → 45% CPU (per Alpine)
+```
+
+**Implementation:**
+```bash
+# Calculate delay between user startups
+USER_DELAY = RAMP_TIME / USERS  # 60s / 15 users = 4s per user
+
+# Start each user with staggered delay
+for user_id in $(seq 1 $USERS); do
+    (
+        DELAY=$(awk "BEGIN {print ($user_id - 1) * $USER_DELAY}")
+        sleep $DELAY  # User 1: 0s, User 2: 4s, User 3: 8s, etc.
+
+        # Then make continuous requests
+        while [ $(date +%s) -lt $END_TIME ]; do
+            wget "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&..."
+        done
+    ) &
+done
+```
+
+**Key Changes:**
+1. Added `RAMP_TIME` parameter to alpine script
+2. Calculate `USER_DELAY = RAMP / USERS`
+3. Each user sleeps `(user_id - 1) × USER_DELAY` before starting
+4. Back to fast per-request ramp (ramp=2) since overall ramp is controlled by staggered startup
+
+**Files Modified:**
+- `swarmguard/tests/alpine_scenario2_final.sh` (lines 111-162, 193)
+
+### Expected Behavior
+
+**Command:** `./alpine_scenario2_final.sh 15 3 20 1 60 300`
+
+**Timeline:**
+- **T+0s:** First user on each Alpine starts → 12% CPU total (3% × 4 Alpines)
+- **T+15s:** ~4 users active per Alpine → 48% CPU total
+- **T+30s:** ~8 users active per Alpine → 96% CPU total
+- **T+45s:** ~12 users active per Alpine → 144% CPU total
+- **T+60s:** All 15 users active per Alpine → 180% CPU total (peak)
+- **T+90s:** Scenario 2 triggers → scale 1→2
+- **Load distributes:** New requests spread across both replicas
+
+**Grafana visualization:** Smooth, linear CPU/Memory/Network ramp over 60 seconds instead of instant spike.
+
+**Status:** ✅ Ready for testing - should achieve true 45-60s gradual ramp
+

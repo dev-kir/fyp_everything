@@ -108,7 +108,7 @@ if [ "$USER_MODE" = true ]; then
     echo "  Network: ${ALPINE_NETWORK}Mbps"
     echo ""
 
-    # Create Alpine script - Continuous requests to distribute across replicas
+    # Create Alpine script - Gradual user ramp-up over time
     cat > /tmp/alpine_user_sim.sh << 'EOFSCRIPT'
 #!/bin/sh
 SERVICE_URL="$1"
@@ -117,26 +117,39 @@ CPU_PER_USER="$3"
 MEM_PER_USER="$4"
 NET_PER_USER="$5"
 USERS="$6"
+RAMP_TIME="$7"
 
-echo "[$HOSTNAME] Simulating $USERS users for ${DURATION}s"
+echo "[$HOSTNAME] Simulating $USERS users ramping over ${RAMP_TIME}s, running for ${DURATION}s"
 echo "[$HOSTNAME] Per-user: CPU=${CPU_PER_USER}%, MEM=${MEM_PER_USER}MB, NET=${NET_PER_USER}Mbps"
 
 STOP_FLAG="/tmp/stop_alpine_sim_$$"
 trap 'touch $STOP_FLAG; echo "[$HOSTNAME] Stopping all users..."; exit 0' INT TERM
 
-END_TIME=$(($(date +%s) + DURATION))
+START_TIME=$(date +%s)
+END_TIME=$((START_TIME + DURATION))
 
-# Launch N user processes in parallel
+# Calculate delay between user startups to spread over RAMP_TIME
+if [ $USERS -gt 1 ]; then
+    USER_DELAY=$(awk "BEGIN {print $RAMP_TIME / $USERS}")
+else
+    USER_DELAY=0
+fi
+
+echo "[$HOSTNAME] Starting users gradually: ${USER_DELAY}s between each user"
+
+# Launch N user processes with staggered start times
 for user_id in $(seq 1 $USERS); do
     (
+        # Wait before this user starts (staggered ramp-up)
+        DELAY=$(awk "BEGIN {print ($user_id - 1) * $USER_DELAY}")
+        sleep $DELAY
+
         REQUESTS=0
         while [ $(date +%s) -lt $END_TIME ] && [ ! -f $STOP_FLAG ]; do
-            # Each user makes rapid 10s requests with gradual 8s ramp (slower CPU spike)
+            # Each user makes continuous 10s requests (fast cycles for distribution)
             wget -q -O /dev/null --timeout=12 \
-                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=10&ramp=8" \
+                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=10&ramp=2" \
                 2>&1 && REQUESTS=$((REQUESTS + 1))
-
-            # No sleep - continuous requests for maximum distribution
         done
         echo "  [$HOSTNAME] User $user_id: $REQUESTS requests completed"
     ) &
@@ -165,19 +178,19 @@ EOFSCRIPT
     echo "   → Dashboard: Container Metrics"
     echo ""
     echo "Expected behavior:"
-    echo "  - ${TOTAL_USERS} users making continuous requests"
-    echo "  - Docker Swarm distributes requests across replicas"
-    echo "  - T+30s: Peak load (${TARGET_CPU}% CPU, ${TARGET_MEMORY}MB RAM, ${TARGET_NETWORK}Mbps NET)"
-    echo "  - T+60s: Scenario 2 triggers → scale 1→2"
-    echo "  - T+90s: Load distributes across 2 replicas (visible in Grafana)"
+    echo "  - ${TOTAL_USERS} users ramp up gradually over ${RAMP}s (staggered startup)"
+    echo "  - CPU/Memory/Network increase smoothly to target levels"
+    echo "  - T+${RAMP}s: All users active → Peak load (${TARGET_CPU}% CPU, ${TARGET_MEMORY}MB RAM, ${TARGET_NETWORK}Mbps NET)"
+    echo "  - T+$((RAMP + 30))s: Scenario 2 triggers → scale 1→2"
+    echo "  - Load distributes across replicas as they come online (visible in Grafana)"
     echo ""
     echo "Press Ctrl+C to stop the test"
     echo ""
 
     PIDS=()
     for node in "${ALPINE_NODES[@]}"; do
-        echo "  Starting $USERS_PER_ALPINE users on $node..."
-        ssh $node "/tmp/alpine_user_sim.sh $SERVICE_URL $DURATION $CPU_PER_USER $MEM_PER_USER $NET_PER_USER $USERS_PER_ALPINE" > /tmp/${node}_sim.log 2>&1 &
+        echo "  Starting $USERS_PER_ALPINE users on $node (staggered over ${RAMP}s)..."
+        ssh $node "/tmp/alpine_user_sim.sh $SERVICE_URL $DURATION $CPU_PER_USER $MEM_PER_USER $NET_PER_USER $USERS_PER_ALPINE $RAMP" > /tmp/${node}_sim.log 2>&1 &
         PIDS+=($!)
     done
 
