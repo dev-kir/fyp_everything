@@ -2161,3 +2161,30 @@ cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
 
 ---
 
+
+### Attempt 31.1: Fix Memory Gradual Ramp
+**Date:** December 16, 2025
+**Issue:** Memory spiked to 100% immediately instead of ramping gradually
+
+**Root Cause:**
+Memory stressor allocated all chunks immediately, ignoring ramp_seconds parameter.
+
+**Fix Applied:**
+Modified memory_stress.py to allocate chunks gradually over ramp period:
+- Calculate delay_per_chunk = ramp_seconds / total_chunks
+- Allocate one 10MB chunk, sleep, repeat
+- Results in smooth 0MB → target MB over ramp period
+
+**Example:**
+- target=800MB, ramp=60s
+- total_chunks = 80
+- delay = 60s / 80 = 0.75s per chunk
+- Allocates 10MB every 0.75s for 60 seconds
+
+**Files Modified:**
+- swarmguard/web-stress/stress/memory_stress.py (lines 17-71)
+
+**Status:** ✅ Ready for rebuild
+
+---
+
