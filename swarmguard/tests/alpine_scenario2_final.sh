@@ -118,42 +118,19 @@ END_TIME=$(($(date +%s) + DURATION))
 # Launch user processes - each user calls SEPARATE endpoints
 for user_id in $(seq 1 $USERS); do
     (
-        CPU_REQS=0
-        MEM_REQS=0
-        NET_REQS=0
+        # Use /stress/incremental endpoint - designed for distributed user simulation
+        # Each request ADDS load in background (no stop() conflicts)
+        REQUESTS=0
+        while [ $(date +%s) -lt $END_TIME ]; do
+            wget -q -O /dev/null --timeout=15 \
+                "$SERVICE_URL/stress/incremental?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=10&ramp=0" \
+                2>&1 && REQUESTS=$((REQUESTS + 1))
 
-        # CPU stress loop - pulsing with LONG sleep to prevent pile-up
-        (
-            while [ $(date +%s) -lt $END_TIME ]; do
-                wget -q -O /dev/null --timeout=10 \
-                    "$SERVICE_URL/stress/cpu?target=$CPU_PER_USER&duration=2&ramp=0" \
-                    2>&1 && CPU_REQS=$((CPU_REQS + 1))
-                sleep 5  # Longer sleep to avoid CPU pile-up from multiple Alpines
-            done
-        ) &
+            # Sleep to prevent pile-up (duration=10s, sleep=8s = 2s overlap for smooth continuity)
+            sleep 8
+        done
 
-        # Memory stress loop - faster refresh (memory is stable)
-        (
-            while [ $(date +%s) -lt $END_TIME ]; do
-                wget -q -O /dev/null --timeout=10 \
-                    "$SERVICE_URL/stress/memory?target=$MEM_PER_USER&duration=8&ramp=0" \
-                    2>&1 && MEM_REQS=$((MEM_REQS + 1))
-                sleep 6  # Reduced overlap - memory is stable
-            done
-        ) &
-
-        # Network stress loop - faster refresh (network needs consistency)
-        (
-            while [ $(date +%s) -lt $END_TIME ]; do
-                wget -q -O /dev/null --timeout=10 \
-                    "$SERVICE_URL/stress/network?bandwidth=$NET_PER_USER&duration=8&ramp=0" \
-                    2>&1 && NET_REQS=$((NET_REQS + 1))
-                sleep 6  # Reduced overlap - faster network refresh
-            done
-        ) &
-
-        wait
-        echo "  User $user_id: CPU=$CPU_REQS MEM=$MEM_REQS NET=$NET_REQS requests"
+        echo "  User $user_id: $REQUESTS incremental requests"
     ) &
 done
 
