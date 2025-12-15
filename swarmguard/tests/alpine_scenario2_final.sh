@@ -131,13 +131,12 @@ for user_id in $(seq 1 $USERS); do
     (
         REQUESTS=0
         while [ $(date +%s) -lt $END_TIME ] && [ ! -f $STOP_FLAG ]; do
-            # Each user makes continuous 30s requests
-            wget -q -O /dev/null --timeout=35 \
-                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=30&ramp=5" \
+            # Each user makes rapid 10s requests (faster distribution)
+            wget -q -O /dev/null --timeout=12 \
+                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=10&ramp=2" \
                 2>&1 && REQUESTS=$((REQUESTS + 1))
 
-            # Small delay between requests to avoid overwhelming
-            sleep 2
+            # No sleep - continuous requests for maximum distribution
         done
         echo "  [$HOSTNAME] User $user_id: $REQUESTS requests completed"
     ) &

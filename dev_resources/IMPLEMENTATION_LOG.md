@@ -1941,3 +1941,61 @@ Now when scaling occurs:
 
 **Status:** ✅ Ready for testing - should now show load distribution across all replicas
 
+---
+
+## Scenario 2 Testing - Load Distribution Fix v2 (Faster Cycles)
+
+**Date:** December 16, 2025
+**Issue:** Load still not distributing despite continuous requests
+
+### Problem Observed (Second Iteration)
+
+After implementing continuous 30-second requests, Grafana still showed:
+- ❌ **CPU 100% on worker-1 only** (other workers idle)
+- ❌ **Memory concentrated on worker-1**
+- ✅ Network distributed (but still not perfectly)
+
+**Root Cause:**
+- 30-second requests are STILL too long
+- Docker Swarm load balancer routes request → container and holds for full duration
+- Even with 2-second sleep between requests, not enough requests to distribute
+
+### Solution: Ultra-Fast Request Cycles
+
+**Changed from:**
+```bash
+# 30s request + 2s sleep = 32s cycle
+wget "$SERVICE_URL/stress/combined?cpu=3&memory=20&network=1&duration=30&ramp=5"
+sleep 2
+```
+
+**Changed to:**
+```bash
+# 10s request + 0s sleep = 10s cycle (3x faster)
+wget "$SERVICE_URL/stress/combined?cpu=3&memory=20&network=1&duration=10&ramp=2"
+# No sleep - continuous hammering
+```
+
+**Key Changes:**
+- Request duration: 30s → **10s** (3x faster completion)
+- Ramp: 5s → **2s** (faster load application)
+- Sleep: 2s → **0s** (continuous requests)
+
+**Why This Works:**
+- Requests complete 3x faster → 3x more load balancing opportunities
+- 60 users × 10s cycles = ~6 requests/second across all Alpines
+- Docker Swarm has more chances to distribute to different replicas
+- When replica 2 comes online, it immediately starts receiving requests
+
+### Expected Result
+
+With 60 users making 10-second requests:
+1. **T+0-90s (1 replica):** ~360 requests/min all hitting web-stress.1
+2. **T+90s (scale to 2):** New requests split ~50/50 between replicas
+3. **T+140s (scale to 3):** Requests distribute ~33/33/33
+4. **Grafana:** Should show clear distribution across all 3 replicas for CPU, Memory, AND Network
+
+**File Modified:** `swarmguard/tests/alpine_scenario2_final.sh` (lines 131-142)
+
+**Status:** ✅ Ready for re-testing with faster cycles
+
