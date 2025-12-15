@@ -47,16 +47,19 @@ This sets:
 
 ## How It Works
 
-1. **Calculation**: Script calculates per-Alpine aggregate targets
-   - `ALPINE_CPU = USERS_PER_ALPINE × CPU_PER_USER`
-   - `ALPINE_MEMORY = USERS_PER_ALPINE × MEM_PER_USER`
-   - `ALPINE_NETWORK = USERS_PER_ALPINE × NET_PER_USER`
+1. **User Simulation**: Each Alpine node simulates N users making continuous requests
+   - Each user runs in a separate process
+   - Makes 30-second requests in a loop
+   - 2-second delay between requests to avoid overwhelming
 
-2. **Deployment**: Deploys simulation script to all 4 Alpine nodes (alpine-1 through alpine-4)
+2. **Load Distribution**: Docker Swarm load balancer distributes incoming requests
+   - Continuous requests naturally spread across all replicas
+   - As new replicas come online, they receive traffic
+   - All resources (CPU, Memory, Network) distribute evenly
 
-3. **Execution**: Each Alpine makes ONE aggregate request to `/stress/combined` endpoint
-   - Avoids race conditions from overlapping requests
-   - Docker Swarm load balancer distributes requests across replicas
+3. **Ctrl+C Handling**: Press Ctrl+C to gracefully stop all users
+   - Trap signal sent to all Alpine nodes
+   - All user processes terminate cleanly
 
 4. **Monitoring**: Monitors replica count every 15 seconds and reports scale events
 

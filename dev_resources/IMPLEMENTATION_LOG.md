@@ -1873,7 +1873,71 @@ async def incremental_stress(cpu, memory, network, duration, ramp):
 
 **Test Command:**
 ```bash
-./alpine_scenario2_incremental.sh 10 2 50 5 60 120
+./alpine_scenario2_final.sh 10 2 50 5 60 120
 # 40 users: 80% CPU, 2000MB RAM, 200Mbps NET
 ```
+
+---
+
+## Scenario 2 Testing - Load Distribution Fix
+
+**Date:** December 16, 2025
+**Issue:** Load not distributing across replicas in Scenario 2 tests
+
+### Problem Discovered
+
+User ran successful Scenario 2 test that triggered scaling (1→2→3 replicas), but Grafana showed:
+- ✅ **Network traffic** distributed across all replicas
+- ❌ **CPU and Memory** concentrated on ONE replica only (web-stress.1)
+
+**Root Cause:**
+- Script made ONE long-running request per Alpine node (300s duration)
+- Docker Swarm load balancer routed each request to ONE container and kept it there
+- Network worked because network stressor makes continuous outbound requests internally
+
+### Solution: Continuous Request Pattern
+
+**Changed from:**
+```bash
+# ONE 300-second request per Alpine
+wget "$SERVICE_URL/stress/combined?cpu=45&memory=300&network=15&duration=300&ramp=60"
+```
+
+**Changed to:**
+```bash
+# Each user makes continuous 30-second requests in a loop
+while [ $(date +%s) -lt $END_TIME ]; do
+    wget "$SERVICE_URL/stress/combined?cpu=3&memory=20&network=1&duration=30&ramp=5"
+    sleep 2  # Small delay between requests
+done
+```
+
+**Implementation:**
+- Each Alpine simulates N users as separate processes
+- Each user loops: 30s request → 2s sleep → repeat
+- Continuous requests naturally distribute across all replicas via Swarm load balancer
+- Ctrl+C trap gracefully stops all user processes
+
+**File Modified:** `swarmguard/tests/alpine_scenario2_final.sh` (lines 111-150)
+
+### Expected Result
+
+Now when scaling occurs:
+1. **Before scaling (1 replica):** All requests hit web-stress.1
+2. **After scaling (2 replicas):** Requests distribute ~50/50 across web-stress.1 and web-stress.2
+3. **After scaling (3 replicas):** Requests distribute ~33/33/33 across all three
+4. **Grafana visualization:** Clear distribution visible for CPU, Memory, AND Network
+
+### Test Command
+
+```bash
+./tests/alpine_scenario2_final.sh 15 3 20 1 60 300
+# 60 users total (15 per Alpine)
+# Per-user: 3% CPU, 20MB RAM, 1Mbps NET
+# Expected: 180% CPU → scale to 3 replicas
+# Duration: 300s with continuous requests
+# Press Ctrl+C to stop gracefully
+```
+
+**Status:** ✅ Ready for testing - should now show load distribution across all replicas
 

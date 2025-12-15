@@ -108,25 +108,45 @@ if [ "$USER_MODE" = true ]; then
     echo "  Network: ${ALPINE_NETWORK}Mbps"
     echo ""
 
-    # Create Alpine script - ONE request per Alpine (avoids stop() conflicts)
+    # Create Alpine script - Continuous requests to distribute across replicas
     cat > /tmp/alpine_user_sim.sh << 'EOFSCRIPT'
 #!/bin/sh
 SERVICE_URL="$1"
 DURATION="$2"
-CPU_TARGET="$3"
-MEM_TARGET="$4"
-NET_TARGET="$5"
-RAMP="$6"
+CPU_PER_USER="$3"
+MEM_PER_USER="$4"
+NET_PER_USER="$5"
+USERS="$6"
 
-echo "[$HOSTNAME] Triggering stress: CPU=${CPU_TARGET}%, MEM=${MEM_TARGET}MB, NET=${NET_TARGET}Mbps"
+echo "[$HOSTNAME] Simulating $USERS users for ${DURATION}s"
+echo "[$HOSTNAME] Per-user: CPU=${CPU_PER_USER}%, MEM=${MEM_PER_USER}MB, NET=${NET_PER_USER}Mbps"
 
-# Trap Ctrl+C
-trap 'echo "[$HOSTNAME] Stopping..."; wget -q -O /dev/null $SERVICE_URL/stress/stop 2>&1; exit 0' INT TERM
+STOP_FLAG="/tmp/stop_alpine_sim_$$"
+trap 'touch $STOP_FLAG; echo "[$HOSTNAME] Stopping all users..."; exit 0' INT TERM
 
-# ONE request per Alpine (simulates N users via aggregate targets)
-wget -q -O /dev/null --timeout=$((DURATION + 60)) \
-    "$SERVICE_URL/stress/combined?cpu=$CPU_TARGET&memory=$MEM_TARGET&network=$NET_TARGET&duration=$DURATION&ramp=$RAMP" \
-    2>&1 && echo "[$HOSTNAME] ✓ Stress completed" || echo "[$HOSTNAME] ❌ Stress FAILED"
+END_TIME=$(($(date +%s) + DURATION))
+
+# Launch N user processes in parallel
+for user_id in $(seq 1 $USERS); do
+    (
+        REQUESTS=0
+        while [ $(date +%s) -lt $END_TIME ] && [ ! -f $STOP_FLAG ]; do
+            # Each user makes continuous 30s requests
+            wget -q -O /dev/null --timeout=35 \
+                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=30&ramp=5" \
+                2>&1 && REQUESTS=$((REQUESTS + 1))
+
+            # Small delay between requests to avoid overwhelming
+            sleep 2
+        done
+        echo "  [$HOSTNAME] User $user_id: $REQUESTS requests completed"
+    ) &
+done
+
+# Wait for all user processes
+wait
+rm -f $STOP_FLAG
+echo "[$HOSTNAME] ✓ All $USERS users completed"
 EOFSCRIPT
 
     # Deploy to Alpine nodes
@@ -158,7 +178,7 @@ EOFSCRIPT
     PIDS=()
     for node in "${ALPINE_NODES[@]}"; do
         echo "  Starting $USERS_PER_ALPINE users on $node..."
-        ssh $node "/tmp/alpine_user_sim.sh $SERVICE_URL $DURATION $ALPINE_CPU $ALPINE_MEMORY $ALPINE_NETWORK $RAMP" > /tmp/${node}_sim.log 2>&1 &
+        ssh $node "/tmp/alpine_user_sim.sh $SERVICE_URL $DURATION $CPU_PER_USER $MEM_PER_USER $NET_PER_USER $USERS_PER_ALPINE" > /tmp/${node}_sim.log 2>&1 &
         PIDS+=($!)
     done
 
