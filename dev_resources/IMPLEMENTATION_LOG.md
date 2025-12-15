@@ -1999,3 +1999,45 @@ With 60 users making 10-second requests:
 
 **Status:** ✅ Ready for re-testing with faster cycles
 
+---
+
+## Scenario 2 Testing - Gradual CPU Ramp for Better Distribution
+
+**Date:** December 16, 2025
+**Issue:** CPU still spiking to 100% on one worker, preventing distribution
+
+### Additional Refinement
+
+**Problem:** Even with 10-second request cycles, CPU was ramping too fast (2 seconds):
+- Ramp=2s → CPU hits 100% almost immediately
+- Load balancer doesn't have time to route new requests to other replicas
+- All load concentrates on first replica before scaling occurs
+
+**Solution:** Slower CPU ramp within each request cycle
+
+**Changed:**
+```bash
+# Before: Fast ramp (2s out of 10s request)
+duration=10&ramp=2  # CPU spikes in 20% of request duration
+
+# After: Gradual ramp (8s out of 10s request)
+duration=10&ramp=8  # CPU ramps over 80% of request duration
+```
+
+**Why This Helps:**
+- CPU increases gradually over 8 seconds instead of spiking in 2 seconds
+- Load balancer has 8 seconds to distribute incoming requests before CPU maxes out
+- When replica 2 comes online, CPU on replica 1 is still ramping (not maxed yet)
+- New requests can route to replica 2 while replica 1 gradually increases load
+
+**Expected Behavior:**
+1. **T+0s:** 60 users start → requests routing to web-stress.1
+2. **T+0-8s:** CPU on web-stress.1 gradually increases from 0% → target
+3. **T+90s:** Scale to 2 replicas
+4. **New requests:** Immediately distribute to web-stress.2 while web-stress.1 is still ramping
+5. **Result:** Both replicas should show gradual CPU curves, not one spike + one idle
+
+**File Modified:** `swarmguard/tests/alpine_scenario2_final.sh` (line 136)
+
+**Status:** ✅ Ready for testing with gradual ramp
+

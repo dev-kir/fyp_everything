@@ -131,9 +131,9 @@ for user_id in $(seq 1 $USERS); do
     (
         REQUESTS=0
         while [ $(date +%s) -lt $END_TIME ] && [ ! -f $STOP_FLAG ]; do
-            # Each user makes rapid 10s requests (faster distribution)
+            # Each user makes rapid 10s requests with gradual 8s ramp (slower CPU spike)
             wget -q -O /dev/null --timeout=12 \
-                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=10&ramp=2" \
+                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=10&ramp=8" \
                 2>&1 && REQUESTS=$((REQUESTS + 1))
 
             # No sleep - continuous requests for maximum distribution
