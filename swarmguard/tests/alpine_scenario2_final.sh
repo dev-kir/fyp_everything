@@ -121,12 +121,13 @@ for user_id in $(seq 1 $USERS); do
         REQUESTS=0
         while [ $(date +%s) -lt $END_TIME ]; do
             # Each user triggers stress endpoint - creates load distributed by Swarm
+            # CRITICAL: duration=2s, sleep=3s → NO OVERLAP (requests don't pile up)
             wget -q -O /dev/null --timeout=10 \
-                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=8&ramp=2" \
+                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=2&ramp=0" \
                 2>&1 && REQUESTS=$((REQUESTS + 1))
 
-            # Small delay between requests
-            sleep 1
+            # Sleep longer than duration to prevent overlap
+            sleep 3
         done
         echo "  User $user_id: $REQUESTS requests"
     ) &
