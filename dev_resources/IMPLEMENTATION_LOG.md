@@ -2115,3 +2115,49 @@ done
 
 **Status:** ✅ Ready for testing - should achieve true 45-60s gradual ramp
 
+
+## Attempt 31: Fix CPU Gradual Ramp + Create Scenario 2 Test Script
+**Date:** December 16, 2025
+**Issue:** CPU jumps to 100% immediately instead of gradually ramping up
+
+### Problem Analysis
+- CPU stressor used multiprocessing where each process runs at 100% immediately
+- Ramp parameter only controlled WHEN to start processes, not CPU intensity
+- Resulted in instant spike to 100% instead of gradual 0% → target%
+
+### Solution Implemented
+
+**Fix 1:** Modified cpu_stress.py for true gradual ramp
+- Single process that increases intensity linearly over ramp period
+- CPU% = (elapsed / ramp) × target during ramp phase
+- Smooth 0% → target% curve visible in Grafana
+
+**Fix 2:** Created alpine_test_scenario2.sh
+- Continuous 10-second request cycles instead of long requests
+- Allows Docker Swarm to distribute across replicas after scale-up
+- Parameters: CPU, MEMORY, NETWORK, RAMP, DURATION, USERS
+
+### Files Modified
+1. swarmguard/web-stress/stress/cpu_stress.py - Gradual CPU ramp implementation
+2. swarmguard/tests/alpine_test_scenario2.sh - NEW test script
+
+### Commands
+
+```bash
+# 1. Rebuild web-stress
+cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/web-stress
+docker build -t docker-registry.amirmuz.com/web-stress:latest .
+docker push docker-registry.amirmuz.com/web-stress:latest
+
+# 2. Update service
+ssh master "docker service update --force web-stress"
+
+# 3. Run test (40 users: 80% CPU, 2000MB RAM, 200Mbps NET)
+cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/tests
+./alpine_test_scenario2.sh 2 50 5 60 120 10
+```
+
+**Status:** ✅ Ready for testing
+
+---
+

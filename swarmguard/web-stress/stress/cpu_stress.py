@@ -9,13 +9,34 @@ from threading import Thread, Event
 logger = logging.getLogger(__name__)
 
 
-def cpu_burn_process(duration):
-    """Burn 100% CPU in a separate process"""
-    end_time = time.time() + duration
+def cpu_burn_process(target_percent, ramp_seconds, duration_seconds):
+    """Burn CPU gradually ramping from 0% to target_percent over ramp_seconds"""
+    start_time = time.time()
+    end_time = start_time + duration_seconds
+
     while time.time() < end_time:
-        # Maximum CPU burn - pure computation
-        for _ in range(100000):
+        elapsed = time.time() - start_time
+
+        # Calculate current target percentage based on ramp
+        if elapsed < ramp_seconds:
+            # Gradual ramp: 0% → target_percent over ramp_seconds
+            current_percent = (elapsed / ramp_seconds) * target_percent
+        else:
+            # After ramp, maintain target
+            current_percent = target_percent
+
+        # Burn CPU for current_percent of each second
+        cycle_start = time.time()
+        burn_duration = current_percent / 100.0
+
+        # Busy loop for burn_duration seconds
+        while (time.time() - cycle_start) < burn_duration:
             _ = 2 ** 1000
+
+        # Sleep for the rest of the second
+        sleep_time = max(0, 1.0 - (time.time() - cycle_start))
+        if sleep_time > 0:
+            time.sleep(sleep_time)
 
 
 class CPUStressor:
@@ -43,32 +64,21 @@ class CPUStressor:
         self.active = True
 
         try:
-            # Use multiprocessing for TRUE parallel CPU usage (bypasses Python GIL)
-            num_cores = multiprocessing.cpu_count()
-            # Calculate number of processes needed
-            target_processes = max(1, int((target_percent / 100.0) * num_cores))
+            # Use single process that gradually increases CPU from 0% to target%
+            logger.info(f"Starting CPU stress: 0% → {target_percent}% over {ramp_seconds}s, hold for {duration_seconds}s")
 
-            logger.info(f"Ramping CPU load to {target_percent}% ({target_processes} processes) over {ramp_seconds}s")
+            # Start single process with gradual ramp
+            p = multiprocessing.Process(
+                target=cpu_burn_process,
+                args=(target_percent, ramp_seconds, duration_seconds)
+            )
+            p.start()
+            self.processes.append(p)
 
-            # Ramp up gradually by starting processes one by one
-            if ramp_seconds > 0:
-                delay_per_process = ramp_seconds / target_processes
-                for i in range(target_processes):
-                    p = multiprocessing.Process(target=cpu_burn_process, args=(duration_seconds + ramp_seconds,))
-                    p.start()
-                    self.processes.append(p)
-                    logger.info(f"Started CPU process {i+1}/{target_processes} (ramp step {i+1})")
-                    if i < target_processes - 1:  # Don't sleep after last process
-                        time.sleep(delay_per_process)
-            else:
-                # No ramp, start all at once
-                for i in range(target_processes):
-                    p = multiprocessing.Process(target=cpu_burn_process, args=(duration_seconds,))
-                    p.start()
-                    self.processes.append(p)
+            logger.info(f"CPU stress: ramping to {target_percent}% over {ramp_seconds}s")
 
-            logger.info(f"CPU stress maintaining {target_percent}% for {duration_seconds}s")
-            time.sleep(duration_seconds)
+            # Wait for the process to complete
+            p.join()
         finally:
             self.stop()
 
