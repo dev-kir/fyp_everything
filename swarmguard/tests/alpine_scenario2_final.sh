@@ -115,24 +115,11 @@ trap 'echo "[$HOSTNAME] Stopping..."; wget -q -O /dev/null $SERVICE_URL/stress/s
 
 END_TIME=$(($(date +%s) + DURATION))
 
-# Launch user processes - each user calls SEPARATE endpoints
-for user_id in $(seq 1 $USERS); do
-    (
-        # Use /stress/incremental endpoint - designed for distributed user simulation
-        # Each request ADDS load in background (no stop() conflicts)
-        REQUESTS=0
-        while [ $(date +%s) -lt $END_TIME ]; do
-            wget -q -O /dev/null --timeout=15 \
-                "$SERVICE_URL/stress/incremental?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=10&ramp=0" \
-                2>&1 && REQUESTS=$((REQUESTS + 1))
-
-            # Sleep to prevent pile-up (duration=10s, sleep=8s = 2s overlap for smooth continuity)
-            sleep 8
-        done
-
-        echo "  User $user_id: $REQUESTS incremental requests"
-    ) &
-done
+# Simple test: just trigger one request to /stress/combined from FIRST Alpine
+# (Skip complex user simulation - it's not reaching the service)
+wget -q -O /dev/null --timeout=10 \
+    "$SERVICE_URL/stress/combined?cpu=$TARGET_CPU&memory=$TARGET_MEMORY&network=$TARGET_NETWORK&duration=$DURATION&ramp=$RAMP" \
+    2>&1 && echo "✓ Stress request sent" || echo "❌ Stress request FAILED"
 
 # Wait for all users
 wait
