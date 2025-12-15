@@ -101,19 +101,27 @@ for alpine in "${ALPINE_NODES[@]}"; do
     echo -e "${GREEN}Starting ${USERS_PER_ALPINE} users on ${alpine}...${NC}"
 
     ssh "$alpine" "sh -s" <<-EOF &
-        # Each user sends continuous short requests (10s cycles)
-        # This allows Docker Swarm to distribute across replicas after scale-up
+        # Staggered user startup for gradual ramp
+        # Each user starts at different times, spreading load over ramp period
 
         START_TIME=\$(date +%s)
         END_TIME=\$((START_TIME + ${RAMP_TIME} + ${DURATION}))
 
+        # Calculate delay between user startups
+        USER_DELAY=\$(awk "BEGIN {print ${RAMP_TIME} / ${USERS_PER_ALPINE}}")
+
         for user_id in \$(seq 1 ${USERS_PER_ALPINE}); do
             (
+                # Staggered start: User 1 at T+0s, User 2 at T+USER_DELAY, etc.
+                DELAY=\$(awk "BEGIN {print (\$user_id - 1) * \$USER_DELAY}" user_id=\$user_id USER_DELAY=\$USER_DELAY)
+                sleep \$DELAY
+
+                # Now send continuous requests until test ends
                 while [ \$(date +%s) -lt \$END_TIME ]; do
-                    # Send 10-second stress request
-                    # Continuous short requests = better distribution
+                    # Send 10-second stress request (no ramp per request)
+                    # Ramp is achieved by staggered user startup
                     wget -q -O /dev/null \\
-                        "${SERVICE_URL}/stress/combined?cpu=${CPU_PER_USER}&memory=${MEMORY_PER_USER}&network=${NETWORK_PER_USER}&duration=10&ramp=${RAMP_TIME}" \\
+                        "${SERVICE_URL}/stress/combined?cpu=${CPU_PER_USER}&memory=${MEMORY_PER_USER}&network=${NETWORK_PER_USER}&duration=10&ramp=1" \\
                         2>/dev/null || true
 
                     # Small delay before next request
