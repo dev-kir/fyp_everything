@@ -107,35 +107,59 @@ CPU_PER_USER="$4"
 MEM_PER_USER="$5"
 NET_PER_USER="$6"
 
-echo "[$HOSTNAME] Simulating $USERS users for ${DURATION}s (continuous mode)"
+echo "[$HOSTNAME] Simulating $USERS users for ${DURATION}s"
 echo "[$HOSTNAME] Per-user: ${CPU_PER_USER}% CPU, ${MEM_PER_USER}MB RAM, ${NET_PER_USER}Mbps NET"
 
 # Trap Ctrl+C
-trap 'echo "[$HOSTNAME] Stopping..."; exit 0' INT TERM
+trap 'echo "[$HOSTNAME] Stopping..."; wget -q -O /dev/null $SERVICE_URL/stress/stop 2>&1; exit 0' INT TERM
 
 END_TIME=$(($(date +%s) + DURATION))
 
-# Launch user processes
+# Launch user processes - each user calls SEPARATE endpoints
 for user_id in $(seq 1 $USERS); do
     (
-        REQUESTS=0
-        while [ $(date +%s) -lt $END_TIME ]; do
-            # Each user triggers stress endpoint - creates load distributed by Swarm
-            # CRITICAL: duration=2s, sleep=3s → NO OVERLAP (requests don't pile up)
-            wget -q -O /dev/null --timeout=10 \
-                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=2&ramp=0" \
-                2>&1 && REQUESTS=$((REQUESTS + 1))
+        CPU_REQS=0
+        MEM_REQS=0
+        NET_REQS=0
 
-            # Sleep longer than duration to prevent overlap
-            sleep 3
-        done
-        echo "  User $user_id: $REQUESTS requests"
+        # CPU stress loop - pulsing with sleep to prevent pile-up
+        (
+            while [ $(date +%s) -lt $END_TIME ]; do
+                wget -q -O /dev/null --timeout=10 \
+                    "$SERVICE_URL/stress/cpu?target=$CPU_PER_USER&duration=2&ramp=0" \
+                    2>&1 && CPU_REQS=$((CPU_REQS + 1))
+                sleep 3  # Sleep > duration to prevent overlap
+            done
+        ) &
+
+        # Memory stress loop - continuous (memory persists)
+        (
+            while [ $(date +%s) -lt $END_TIME ]; do
+                wget -q -O /dev/null --timeout=10 \
+                    "$SERVICE_URL/stress/memory?target=$MEM_PER_USER&duration=10&ramp=0" \
+                    2>&1 && MEM_REQS=$((MEM_REQS + 1))
+                sleep 8  # Overlap allowed - memory accumulates
+            done
+        ) &
+
+        # Network stress loop - continuous (generates traffic)
+        (
+            while [ $(date +%s) -lt $END_TIME ]; do
+                wget -q -O /dev/null --timeout=10 \
+                    "$SERVICE_URL/stress/network?bandwidth=$NET_PER_USER&duration=10&ramp=0" \
+                    2>&1 && NET_REQS=$((NET_REQS + 1))
+                sleep 8  # Overlap allowed - network adds up
+            done
+        ) &
+
+        wait
+        echo "  User $user_id: CPU=$CPU_REQS MEM=$MEM_REQS NET=$NET_REQS requests"
     ) &
 done
 
 # Wait for all users
 wait
-echo "[$HOSTNAME] All users completed"
+echo "[$HOSTNAME] All $USERS users completed"
 EOFSCRIPT
 
     # Deploy to Alpine nodes
