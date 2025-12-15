@@ -93,27 +93,100 @@ INITIAL_REPLICAS=$(ssh master "docker service ls --filter name=web-stress --form
 echo "  web-stress replicas: $INITIAL_REPLICAS"
 echo ""
 
-# Start stress test
-echo "[2/2] Triggering stress/combined endpoint..."
-echo ""
-echo "📊 OPEN GRAFANA NOW:"
-echo "   → http://192.168.2.61:3000"
-echo "   → Dashboard: Container Metrics"
-echo ""
-echo "Expected behavior:"
-echo "  T+0s:    Stress starts ramping up"
-echo "  T+${RAMP}s:  CPU=${TARGET_CPU}%, MEM=${TARGET_MEMORY}MB, NET=${TARGET_NETWORK}Mbps (peak load)"
-echo "  T+60s:   Recovery manager detects HIGH CPU+MEM+NET → Scenario 2"
-echo "  T+90s:   System scales 1→2 replicas"
-echo "  T+120s:  Load visible across 2 replicas in Grafana"
-echo ""
+# Deploy user simulation script to Alpine nodes
+if [ "$USER_MODE" = true ]; then
+    echo "[2/4] Deploying user simulation to Alpine nodes..."
 
-# Trigger stress in background
-curl -s "http://192.168.2.50:8080/stress/combined?cpu=${TARGET_CPU}&memory=${TARGET_MEMORY}&network=${TARGET_NETWORK}&duration=${DURATION}&ramp=${RAMP}" | jq . &
-STRESS_PID=$!
+    # Create Alpine user script
+    cat > /tmp/alpine_user_sim.sh << 'EOFSCRIPT'
+#!/bin/sh
+SERVICE_URL="$1"
+DURATION="$2"
+USERS="$3"
+CPU_PER_USER="$4"
+MEM_PER_USER="$5"
+NET_PER_USER="$6"
 
-echo "✓ Stress test started (PID: $STRESS_PID)"
-echo ""
+echo "[$HOSTNAME] Simulating $USERS users for ${DURATION}s (continuous mode)"
+echo "[$HOSTNAME] Per-user: ${CPU_PER_USER}% CPU, ${MEM_PER_USER}MB RAM, ${NET_PER_USER}Mbps NET"
+
+# Trap Ctrl+C
+trap 'echo "[$HOSTNAME] Stopping..."; exit 0' INT TERM
+
+END_TIME=$(($(date +%s) + DURATION))
+
+# Launch user processes
+for user_id in $(seq 1 $USERS); do
+    (
+        REQUESTS=0
+        while [ $(date +%s) -lt $END_TIME ]; do
+            # Each user triggers stress endpoint - creates load distributed by Swarm
+            wget -q -O /dev/null --timeout=10 \
+                "$SERVICE_URL/stress/combined?cpu=$CPU_PER_USER&memory=$MEM_PER_USER&network=$NET_PER_USER&duration=8&ramp=2" \
+                2>&1 && REQUESTS=$((REQUESTS + 1))
+
+            # Small delay between requests
+            sleep 1
+        done
+        echo "  User $user_id: $REQUESTS requests"
+    ) &
+done
+
+# Wait for all users
+wait
+echo "[$HOSTNAME] All users completed"
+EOFSCRIPT
+
+    # Deploy to Alpine nodes
+    for node in "${ALPINE_NODES[@]}"; do
+        ssh $node "pkill -f alpine_user_sim.sh 2>/dev/null" || true
+        scp -q /tmp/alpine_user_sim.sh ${node}:/tmp/
+        ssh $node "chmod +x /tmp/alpine_user_sim.sh"
+    done
+    echo "✓ Deployed to ${#ALPINE_NODES[@]} Alpine nodes"
+    echo ""
+
+    # Start user simulation
+    echo "[3/4] Starting user simulation on Alpine nodes..."
+    echo ""
+    echo "📊 OPEN GRAFANA NOW:"
+    echo "   → http://192.168.2.61:3000"
+    echo "   → Dashboard: Container Metrics"
+    echo ""
+    echo "Expected behavior:"
+    echo "  - ${TOTAL_USERS} users making continuous requests"
+    echo "  - Docker Swarm distributes requests across replicas"
+    echo "  - T+30s: Peak load (${TARGET_CPU}% CPU, ${TARGET_MEMORY}MB RAM, ${TARGET_NETWORK}Mbps NET)"
+    echo "  - T+60s: Scenario 2 triggers → scale 1→2"
+    echo "  - T+90s: Load distributes across 2 replicas (visible in Grafana)"
+    echo ""
+    echo "Press Ctrl+C to stop the test"
+    echo ""
+
+    PIDS=()
+    for node in "${ALPINE_NODES[@]}"; do
+        echo "  Starting $USERS_PER_ALPINE users on $node..."
+        ssh $node "/tmp/alpine_user_sim.sh $SERVICE_URL $((RAMP + DURATION)) $USERS_PER_ALPINE $CPU_PER_USER $MEM_PER_USER $NET_PER_USER" > /tmp/${node}_sim.log 2>&1 &
+        PIDS+=($!)
+    done
+
+    echo ""
+    echo "✓ ${TOTAL_USERS} users actively generating load"
+    echo ""
+else
+    # Absolute mode - single stress trigger (old behavior)
+    echo "[2/4] Triggering stress/combined endpoint..."
+    echo ""
+    echo "📊 OPEN GRAFANA NOW:"
+    echo "   → http://192.168.2.61:3000"
+    echo ""
+
+    curl -s "http://192.168.2.50:8080/stress/combined?cpu=${TARGET_CPU}&memory=${TARGET_MEMORY}&network=${TARGET_NETWORK}&duration=${DURATION}&ramp=${RAMP}" | jq . &
+    STRESS_PID=$!
+    echo ""
+    echo "✓ Stress test started (PID: $STRESS_PID)"
+    echo ""
+fi
 
 # Monitor
 echo "Monitoring for ${DURATION}s..."
