@@ -97,33 +97,36 @@ echo ""
 if [ "$USER_MODE" = true ]; then
     echo "[2/4] Deploying user simulation to Alpine nodes..."
 
-    # Create Alpine user script
+    # Calculate per-Alpine aggregate (users × per-user contribution)
+    ALPINE_CPU=$((USERS_PER_ALPINE * CPU_PER_USER))
+    ALPINE_MEMORY=$((USERS_PER_ALPINE * MEM_PER_USER))
+    ALPINE_NETWORK=$((USERS_PER_ALPINE * NET_PER_USER))
+
+    echo "Per-Alpine targets (${USERS_PER_ALPINE} users):"
+    echo "  CPU:     ${ALPINE_CPU}%"
+    echo "  Memory:  ${ALPINE_MEMORY}MB"
+    echo "  Network: ${ALPINE_NETWORK}Mbps"
+    echo ""
+
+    # Create Alpine script - ONE request per Alpine (avoids stop() conflicts)
     cat > /tmp/alpine_user_sim.sh << 'EOFSCRIPT'
 #!/bin/sh
 SERVICE_URL="$1"
 DURATION="$2"
-USERS="$3"
-CPU_PER_USER="$4"
-MEM_PER_USER="$5"
-NET_PER_USER="$6"
+CPU_TARGET="$3"
+MEM_TARGET="$4"
+NET_TARGET="$5"
+RAMP="$6"
 
-echo "[$HOSTNAME] Simulating $USERS users for ${DURATION}s"
-echo "[$HOSTNAME] Per-user: ${CPU_PER_USER}% CPU, ${MEM_PER_USER}MB RAM, ${NET_PER_USER}Mbps NET"
+echo "[$HOSTNAME] Triggering stress: CPU=${CPU_TARGET}%, MEM=${MEM_TARGET}MB, NET=${NET_TARGET}Mbps"
 
 # Trap Ctrl+C
 trap 'echo "[$HOSTNAME] Stopping..."; wget -q -O /dev/null $SERVICE_URL/stress/stop 2>&1; exit 0' INT TERM
 
-END_TIME=$(($(date +%s) + DURATION))
-
-# Simple test: just trigger one request to /stress/combined from FIRST Alpine
-# (Skip complex user simulation - it's not reaching the service)
-wget -q -O /dev/null --timeout=10 \
-    "$SERVICE_URL/stress/combined?cpu=$TARGET_CPU&memory=$TARGET_MEMORY&network=$TARGET_NETWORK&duration=$DURATION&ramp=$RAMP" \
-    2>&1 && echo "✓ Stress request sent" || echo "❌ Stress request FAILED"
-
-# Wait for all users
-wait
-echo "[$HOSTNAME] All $USERS users completed"
+# ONE request per Alpine (simulates N users via aggregate targets)
+wget -q -O /dev/null --timeout=$((DURATION + 60)) \
+    "$SERVICE_URL/stress/combined?cpu=$CPU_TARGET&memory=$MEM_TARGET&network=$NET_TARGET&duration=$DURATION&ramp=$RAMP" \
+    2>&1 && echo "[$HOSTNAME] ✓ Stress completed" || echo "[$HOSTNAME] ❌ Stress FAILED"
 EOFSCRIPT
 
     # Deploy to Alpine nodes
@@ -155,7 +158,7 @@ EOFSCRIPT
     PIDS=()
     for node in "${ALPINE_NODES[@]}"; do
         echo "  Starting $USERS_PER_ALPINE users on $node..."
-        ssh $node "/tmp/alpine_user_sim.sh $SERVICE_URL $((RAMP + DURATION)) $USERS_PER_ALPINE $CPU_PER_USER $MEM_PER_USER $NET_PER_USER" > /tmp/${node}_sim.log 2>&1 &
+        ssh $node "/tmp/alpine_user_sim.sh $SERVICE_URL $DURATION $ALPINE_CPU $ALPINE_MEMORY $ALPINE_NETWORK $RAMP" > /tmp/${node}_sim.log 2>&1 &
         PIDS+=($!)
     done
 
