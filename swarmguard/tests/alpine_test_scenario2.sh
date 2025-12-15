@@ -100,16 +100,16 @@ echo ""
 for alpine in "${ALPINE_NODES[@]}"; do
     echo -e "${GREEN}Starting ${USERS_PER_ALPINE} users on ${alpine}...${NC}"
 
-    ssh "$alpine" "bash -s" <<-EOF &
+    ssh "$alpine" "sh -s" <<-EOF &
         # Each user sends continuous short requests (10s cycles)
         # This allows Docker Swarm to distribute across replicas after scale-up
 
+        START_TIME=\$(date +%s)
+        END_TIME=\$((START_TIME + ${RAMP_TIME} + ${DURATION}))
+
         for user_id in \$(seq 1 ${USERS_PER_ALPINE}); do
             (
-                # Calculate total runtime
-                END_TIME=\$((SECONDS + ${RAMP_TIME} + ${DURATION}))
-
-                while [ \$SECONDS -lt \$END_TIME ]; do
+                while [ \$(date +%s) -lt \$END_TIME ]; do
                     # Send 10-second stress request
                     # Continuous short requests = better distribution
                     wget -q -O /dev/null \\
