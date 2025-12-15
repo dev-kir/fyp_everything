@@ -119,12 +119,17 @@ for alpine in "${ALPINE_NODES[@]}"; do
                 START_DELAY=\$(awk "BEGIN {print (\$user_id - 1) * \$USER_DELAY}" user_id=\$user_id USER_DELAY=\$USER_DELAY)
                 sleep \$START_DELAY
 
-                # Single long-running request for full test duration
-                # Use /stress/combined with target percentages
-                # Calculate total target and divide by number of concurrent users for per-request contribution
-                wget -q -O /dev/null \\
-                    "${SERVICE_URL}/stress/combined?cpu=${CPU_PER_USER}&memory=${MEMORY_PER_USER}&network=${NETWORK_PER_USER}&duration=${TEST_DURATION}&ramp=${RAMP_TIME}" \\
-                    2>/dev/null || true
+                # Calculate end time
+                END_TIME=\$((START_TIME + ${TEST_DURATION}))
+
+                # Send continuous short requests (10s cycles)
+                # This allows Docker Swarm to distribute across replicas
+                while [ \$(date +%s) -lt \$END_TIME ]; do
+                    wget -q -O /dev/null \\
+                        "${SERVICE_URL}/stress/combined?cpu=${CPU_PER_USER}&memory=${MEMORY_PER_USER}&network=${NETWORK_PER_USER}&duration=10&ramp=2" \\
+                        2>/dev/null || true
+                    sleep 0.5
+                done
             ) &
         done
 
