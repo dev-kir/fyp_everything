@@ -1,35 +1,90 @@
 #!/bin/bash
-# Alpine Scenario 2 - Final Working Test
-# Uses /stress/combined endpoint triggered from Alpine nodes
+# Alpine Scenario 2 - User-Based Load Test
+# Simulates N users, each contributing X% CPU + Y MB RAM + Z Mbps network
 #
 # Usage:
-#   ./alpine_scenario2_final.sh [CPU%] [MEMORY_MB] [NETWORK_MBPS] [DURATION]
+#   ./alpine_scenario2_final.sh [USERS] [CPU%] [MEMORY_MB] [NETWORK_MBPS] [RAMP] [DURATION]
 #
 # Examples:
-#   ./alpine_scenario2_final.sh 85 1200 80 180
+#   ./alpine_scenario2_final.sh 10 2 50 5 60 120
+#     → 10 users/Alpine × 4 Alpines = 40 users
+#     → Each user: 2% CPU, 50MB RAM, 5Mbps NET
+#     → Expected: 80% CPU, 2000MB RAM, 200Mbps NET
+#
+#   ./alpine_scenario2_final.sh 20 3 75 7 60 180
+#     → 80 users total → ~240% CPU, 6000MB RAM, 560Mbps NET
 
 set -e
 
 echo "=========================================="
-echo "Scenario 2: Final Test (stress/combined)"
+echo "Scenario 2: User-Based Load Test"
 echo "=========================================="
 echo ""
 
-# Configuration
-TARGET_CPU=${1:-85}           # Target CPU% (default: 85%)
-TARGET_MEMORY=${2:-1200}      # Target Memory MB (default: 1200MB)
-TARGET_NETWORK=${3:-80}       # Target Network Mbps (default: 80Mbps)
-DURATION=${4:-180}            # Duration in seconds (default: 180s)
-RAMP=${5:-30}                 # Ramp-up time (default: 30s)
+# Parse parameters
+if [ $# -eq 1 ]; then
+    # Single parameter mode: absolute targets (backward compatible)
+    TARGET_CPU=${1:-85}
+    TARGET_MEMORY=1200
+    TARGET_NETWORK=80
+    RAMP=30
+    DURATION=180
+    USER_MODE=false
+elif [ $# -ge 6 ]; then
+    # User mode: users, cpu/user, mem/user, net/user, ramp, duration
+    USERS_PER_ALPINE=$1
+    CPU_PER_USER=$2
+    MEM_PER_USER=$3
+    NET_PER_USER=$4
+    RAMP=$5
+    DURATION=$6
+    USER_MODE=true
+
+    ALPINE_NODES=("alpine-1" "alpine-2" "alpine-3" "alpine-4")
+    TOTAL_USERS=$((USERS_PER_ALPINE * ${#ALPINE_NODES[@]}))
+
+    # Calculate aggregate targets
+    TARGET_CPU=$((TOTAL_USERS * CPU_PER_USER))
+    TARGET_MEMORY=$((TOTAL_USERS * MEM_PER_USER))
+    TARGET_NETWORK=$((TOTAL_USERS * NET_PER_USER))
+else
+    # Old format: cpu, memory, network, duration, ramp
+    TARGET_CPU=${1:-85}
+    TARGET_MEMORY=${2:-1200}
+    TARGET_NETWORK=${3:-80}
+    DURATION=${4:-180}
+    RAMP=${5:-30}
+    USER_MODE=false
+fi
 
 SERVICE_URL="http://192.168.2.50:8080"
 
-echo "Configuration:"
-echo "  Target CPU:     ${TARGET_CPU}%"
-echo "  Target Memory:  ${TARGET_MEMORY}MB"
-echo "  Target Network: ${TARGET_NETWORK}Mbps"
-echo "  Ramp-up time:   ${RAMP}s"
-echo "  Duration:       ${DURATION}s"
+if [ "$USER_MODE" = true ]; then
+    echo "User Simulation Mode:"
+    echo "  Users per Alpine:  $USERS_PER_ALPINE"
+    echo "  Total Alpines:     ${#ALPINE_NODES[@]}"
+    echo "  Total users:       $TOTAL_USERS"
+    echo ""
+    echo "Per-user contribution:"
+    echo "  CPU:     ${CPU_PER_USER}%"
+    echo "  Memory:  ${MEM_PER_USER}MB"
+    echo "  Network: ${NET_PER_USER}Mbps"
+    echo ""
+    echo "Expected aggregate load:"
+    echo "  CPU:     ${TARGET_CPU}%"
+    echo "  Memory:  ${TARGET_MEMORY}MB"
+    echo "  Network: ${TARGET_NETWORK}Mbps"
+else
+    echo "Absolute Target Mode:"
+    echo "  Target CPU:     ${TARGET_CPU}%"
+    echo "  Target Memory:  ${TARGET_MEMORY}MB"
+    echo "  Target Network: ${TARGET_NETWORK}Mbps"
+fi
+
+echo ""
+echo "Timing:"
+echo "  Ramp-up:  ${RAMP}s"
+echo "  Duration: ${DURATION}s"
 echo ""
 
 # Get initial state
