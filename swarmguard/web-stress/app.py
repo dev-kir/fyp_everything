@@ -181,14 +181,26 @@ async def incremental_stress(
             total_chunks = memory // chunk_size_mb
             chunks_per_step = max(1, total_chunks // ramp) if ramp > 0 else total_chunks
 
-            # CPU burn function
-            def cpu_burn(percent, stop_at):
+            # CPU burn function with gradual ramp
+            def cpu_burn(target_percent, stop_at, ramp_duration):
+                start_time = time.time()
                 while time.time() < stop_at:
-                    start = time.time()
-                    end = start + (percent / 100.0)
-                    while time.time() < end:
+                    elapsed = time.time() - start_time
+
+                    # Gradual ramp from 0% → target_percent over ramp_duration
+                    if elapsed < ramp_duration:
+                        current_percent = (elapsed / ramp_duration) * target_percent
+                    else:
+                        current_percent = target_percent
+
+                    # Burn CPU for current_percent of each second
+                    cycle_start = time.time()
+                    burn_duration = current_percent / 100.0
+
+                    while time.time() - cycle_start < burn_duration:
                         _ = 2 ** 1000  # CPU-intensive calculation
-                    sleep_time = max(0, 1.0 - (time.time() - start))
+
+                    sleep_time = max(0, 1.0 - (time.time() - cycle_start))
                     if sleep_time > 0:
                         time.sleep(sleep_time)
 
@@ -234,7 +246,7 @@ async def incremental_stress(
                         break
 
             # Start CPU and network threads
-            cpu_thread = Thread(target=cpu_burn, args=(cpu, stop_time))
+            cpu_thread = Thread(target=cpu_burn, args=(cpu, stop_time, ramp))
             network_thread = Thread(target=network_traffic, args=(network, stop_time))
 
             cpu_thread.start()
