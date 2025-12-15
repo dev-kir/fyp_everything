@@ -122,33 +122,33 @@ for user_id in $(seq 1 $USERS); do
         MEM_REQS=0
         NET_REQS=0
 
-        # CPU stress loop - pulsing with sleep to prevent pile-up
+        # CPU stress loop - pulsing with LONG sleep to prevent pile-up
         (
             while [ $(date +%s) -lt $END_TIME ]; do
                 wget -q -O /dev/null --timeout=10 \
                     "$SERVICE_URL/stress/cpu?target=$CPU_PER_USER&duration=2&ramp=0" \
                     2>&1 && CPU_REQS=$((CPU_REQS + 1))
-                sleep 3  # Sleep > duration to prevent overlap
+                sleep 5  # Longer sleep to avoid CPU pile-up from multiple Alpines
             done
         ) &
 
-        # Memory stress loop - continuous (memory persists)
+        # Memory stress loop - faster refresh (memory is stable)
         (
             while [ $(date +%s) -lt $END_TIME ]; do
                 wget -q -O /dev/null --timeout=10 \
-                    "$SERVICE_URL/stress/memory?target=$MEM_PER_USER&duration=10&ramp=0" \
+                    "$SERVICE_URL/stress/memory?target=$MEM_PER_USER&duration=8&ramp=0" \
                     2>&1 && MEM_REQS=$((MEM_REQS + 1))
-                sleep 8  # Overlap allowed - memory accumulates
+                sleep 6  # Reduced overlap - memory is stable
             done
         ) &
 
-        # Network stress loop - continuous (generates traffic)
+        # Network stress loop - faster refresh (network needs consistency)
         (
             while [ $(date +%s) -lt $END_TIME ]; do
                 wget -q -O /dev/null --timeout=10 \
-                    "$SERVICE_URL/stress/network?bandwidth=$NET_PER_USER&duration=10&ramp=0" \
+                    "$SERVICE_URL/stress/network?bandwidth=$NET_PER_USER&duration=8&ramp=0" \
                     2>&1 && NET_REQS=$((NET_REQS + 1))
-                sleep 8  # Overlap allowed - network adds up
+                sleep 6  # Reduced overlap - faster network refresh
             done
         ) &
 
