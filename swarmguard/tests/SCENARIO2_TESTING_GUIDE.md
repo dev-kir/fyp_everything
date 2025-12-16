@@ -16,6 +16,11 @@ This guide demonstrates **Scenario 2 (Autoscaling)** with gradual load increase 
 **Before:** After scale-up, old replica stayed at 100%, new replica idle
 **After:** Load automatically distributes across all replicas
 
+### Problem 3: Script Ran But No Requests Sent (CRITICAL BUG FIX)
+**Before:** Script appeared to execute but no stress requests reached containers
+**Root Cause:** Missing `START_TIME` variable in SSH heredoc - `END_TIME` evaluated to just `${TEST_DURATION}` (e.g., 180 seconds since epoch), making while loop condition immediately false
+**After:** Added `START_TIME=$(date +%s)` before calculating `END_TIME` - requests now execute correctly
+
 ---
 
 ## Solution Architecture

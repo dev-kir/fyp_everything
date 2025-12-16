@@ -119,7 +119,8 @@ for alpine in "${ALPINE_NODES[@]}"; do
                 START_DELAY=\$(awk "BEGIN {print (\$user_id - 1) * \$USER_DELAY}" user_id=\$user_id USER_DELAY=\$USER_DELAY)
                 sleep \$START_DELAY
 
-                # Calculate end time
+                # Calculate end time from current time
+                START_TIME=\$(date +%s)
                 END_TIME=\$((START_TIME + ${TEST_DURATION}))
 
                 # Send continuous short requests (10s cycles)

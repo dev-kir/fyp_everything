@@ -2188,3 +2188,39 @@ Modified memory_stress.py to allocate chunks gradually over ramp period:
 
 ---
 
+
+### Attempt 33: Fix Load Distribution - Continuous Short Requests
+**Date:** December 16, 2025
+**Issue:** CPU not distributing across replicas even with 5 containers running
+
+**Root Cause:**
+- v2 script sent ONE long request per user (180s duration)
+- Long requests stick to first container hit by load balancer
+- All requests routed to web-stress.1, other replicas idle
+- Network distributed because network stressor makes many internal requests
+
+**Solution:**
+Changed alpine_test_scenario2_v2.sh to send continuous 10-second requests:
+- Each user loops: 10s request → 0.5s sleep → repeat
+- Docker Swarm load balancer distributes each NEW request
+- Requests rotate across all replicas (round-robin)
+
+**Files Modified:**
+- tests/alpine_test_scenario2_v2.sh lines 116-134
+
+**Test Command:**
+```bash
+curl "http://192.168.2.50:8080/stress/stop"
+sleep 5
+./tests/alpine_test_scenario2_v2.sh 85 800 50 60 180 1
+```
+
+**Expected Result:**
+- CPU/MEM/NET distributed across all 5 replicas
+- Each replica: ~17% CPU, ~160MB RAM, ~10Mbps NET
+- Grafana shows even distribution like network currently does
+
+**Status:** ✅ Ready for testing
+
+---
+
