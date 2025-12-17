@@ -39,6 +39,10 @@ echo "[1/2] Deploying to Docker Swarm (master node)..."
 ssh master "docker service rm intelligent-lb 2>/dev/null || true"
 sleep 2
 
+# Remove cached image on master to force fresh pull
+echo "Removing cached image..."
+ssh master "docker rmi ${IMAGE} 2>/dev/null || true"
+
 ssh master "docker service create \
   --name intelligent-lb \
   --replicas 1 \
