@@ -128,9 +128,12 @@ class LoadBalancer:
         self.round_robin_index = 0
         self.request_count = 0
 
-        # Docker client
+        # Docker client - connect to Unix socket explicitly
         try:
-            self.docker_client = docker.from_env()
+            self.docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
+            # Test connection
+            self.docker_client.ping()
+            logger.info("Docker client connected successfully")
         except Exception as e:
             logger.warning(f"Docker client not available: {e}")
             self.docker_client = None
