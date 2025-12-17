@@ -130,7 +130,8 @@ class LoadBalancer:
 
         # Docker client - connect to Unix socket explicitly
         try:
-            self.docker_client = docker.DockerClient(base_url='unix://var/run/docker.sock')
+            # Use unix:// URL scheme for socket connection
+            self.docker_client = docker.DockerClient(base_url='unix:///var/run/docker.sock')
             # Test connection
             self.docker_client.ping()
             logger.info("Docker client connected successfully")
