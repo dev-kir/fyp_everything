@@ -113,9 +113,9 @@ for alpine in "${ALPINE_NODES[@]}"; do
                 START_DELAY=\$(awk "BEGIN {print (\$user_id - 1) * \$USER_DELAY}" user_id=\$user_id USER_DELAY=\$USER_DELAY)
                 sleep \$START_DELAY
 
-                # Calculate remaining duration
+                # Calculate remaining duration using awk (handles decimals)
                 START_TIME=\$(date +%s)
-                REMAINING_DURATION=$((${TEST_DURATION} - \${START_DELAY%.*}))
+                REMAINING_DURATION=\$(awk "BEGIN {print int(${TEST_DURATION} - \$START_DELAY)}" START_DELAY=\$START_DELAY)
 
                 # Send ONE request to /stress/incremental
                 # This endpoint adds load and auto-releases after duration
