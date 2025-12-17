@@ -157,12 +157,58 @@ class LoadBalancer:
                 )
 ```
 
-**Routing Algorithm**:
+**Routing Algorithms**:
+
+SwarmGuard supports **three load balancing algorithms**:
+
+### Algorithm 1: Lease-Based (NEW - Primary Algorithm)
+1. **Lease Assignment**: When a request arrives, assign it to the replica with the fewest active leases
+2. **Lease Tracking**: Track active leases per replica with expiration timestamps
+3. **Lease Expiration**: Leases expire after `LEASE_DURATION` seconds (default: 30s)
+4. **Lease Renewal**: Automatically clean up expired leases every 1 second
+5. **Benefits**: Fast decision (no metrics query needed), request-count aware, low overhead
+
+**Lease Logic**:
+```python
+# Pseudo-code
+active_leases = {
+    'worker-1:web-stress.1': [
+        {'request_id': 'req-123', 'expires_at': 1734568920},
+        {'request_id': 'req-456', 'expires_at': 1734568925}
+    ],  # 2 active leases
+    'worker-2:web-stress.2': [
+        {'request_id': 'req-789', 'expires_at': 1734568930}
+    ],  # 1 active lease ✅ CHOOSE THIS
+    'worker-3:web-stress.3': []  # 0 active leases (but may be unhealthy)
+}
+
+# Route to replica with minimum active leases (after filtering unhealthy)
+```
+
+### Algorithm 2: Least-Loaded (Metrics-Based)
 1. Every 1 second: Query all monitoring-agents for container metrics
 2. For incoming request: Find all replicas of target service
 3. Calculate load score: `score = (cpu_percent * 0.5) + (memory_percent * 0.3) + (network_percent * 0.2)`
 4. Route to replica with lowest score
 5. Fallback: If metrics unavailable, use round-robin
+
+### Algorithm 3: Hybrid (Lease + Metrics) - Best of Both Worlds
+1. Query metrics every 1 second (background task)
+2. For each replica, calculate combined score:
+   ```python
+   score = (active_lease_count * 10) + (cpu_percent * 0.5) + (memory_percent * 0.3) + (network_percent * 0.2)
+   ```
+3. Route to replica with lowest combined score
+4. This balances both request count AND resource utilization
+
+### Algorithm Selection
+Configurable via environment variable:
+```bash
+LB_ALGORITHM="lease"       # Lease-based (default, fastest)
+LB_ALGORITHM="metrics"     # Metrics-based (resource-aware)
+LB_ALGORITHM="hybrid"      # Lease + Metrics (best accuracy)
+LB_ALGORITHM="round-robin" # Fallback (no intelligence)
+```
 
 **Health Checking**:
 - Monitor /health endpoint of each replica
@@ -404,31 +450,56 @@ swarmguard/
 
 ### Environment Variables (Load Balancer)
 ```bash
+# === Core Configuration ===
 # Worker nodes to query (comma-separated)
 WORKER_NODES="worker-1,worker-2,worker-3"
-
-# Port where monitoring-agents expose metrics
-METRICS_PORT=8082
 
 # Load balancer listening port
 LB_PORT=8081
 
+# Target service name to load balance
+TARGET_SERVICE="web-stress"
+
+# === Algorithm Selection ===
+# Load balancing algorithm: lease, metrics, hybrid, round-robin
+LB_ALGORITHM="lease"
+
+# === Lease-Based Algorithm Configuration ===
+# Lease duration in seconds (how long a request "reserves" a replica)
+LEASE_DURATION=30
+
+# Lease cleanup interval in seconds (remove expired leases)
+LEASE_CLEANUP_INTERVAL=1
+
+# === Metrics-Based Algorithm Configuration ===
+# Port where monitoring-agents expose metrics
+METRICS_PORT=8082
+
 # Metrics cache TTL (seconds)
 CACHE_TTL=1
 
-# Load calculation weights
+# Load calculation weights (for metrics and hybrid algorithms)
 CPU_WEIGHT=0.5
 MEMORY_WEIGHT=0.3
 NETWORK_WEIGHT=0.2
 
-# Target service name to load balance
-TARGET_SERVICE="web-stress"
+# === Hybrid Algorithm Configuration ===
+# Weight for active lease count in hybrid score calculation
+LEASE_COUNT_WEIGHT=10.0
 
-# Fallback to round-robin if metrics unavailable
-FALLBACK_ENABLED=true
-
+# === Health & Fallback ===
 # Health check interval (seconds)
 HEALTH_CHECK_INTERVAL=5
+
+# Fallback to round-robin if primary algorithm fails
+FALLBACK_ENABLED=true
+
+# === Logging & Debugging ===
+# Enable detailed routing decision logging
+DEBUG_ROUTING=false
+
+# Log every Nth request (to avoid log spam)
+LOG_EVERY_N_REQUESTS=100
 ```
 
 ### Environment Variables (Monitoring-Agent)

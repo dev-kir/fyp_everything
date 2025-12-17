@@ -15,6 +15,7 @@ import asyncio
 from metrics_collector import MetricsCollector
 from influxdb_writer import InfluxDBWriter
 from alert_sender import AlertSender
+from api_server import MetricsAPIServer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,12 +38,27 @@ class MonitoringAgent:
         self.network_threshold_low = float(os.getenv('NETWORK_THRESHOLD_LOW', '35.0'))
         self.network_threshold_high = float(os.getenv('NETWORK_THRESHOLD_HIGH', '65.0'))
 
+        # API server configuration
+        self.api_enabled = os.getenv('API_ENABLED', 'true').lower() == 'true'
+        self.api_port = int(os.getenv('API_PORT', '8082'))
+
         logger.info(f"Initializing monitoring agent for node: {self.node_name}")
         logger.info(f"Network interface: {self.net_iface}, Poll interval: {self.poll_interval}s")
+        logger.info(f"API server: {'enabled' if self.api_enabled else 'disabled'} on port {self.api_port}")
 
         self.metrics_collector = MetricsCollector(self.node_name, self.net_iface)
         self.influxdb_writer = InfluxDBWriter(self.influxdb_url, self.influxdb_token)
         self.alert_sender = AlertSender(self.recovery_manager_url)
+
+        # API server for load balancer
+        self.api_server = MetricsAPIServer(self.api_port) if self.api_enabled else None
+
+        # Store latest metrics for API server
+        self.latest_metrics = {
+            'node_name': self.node_name,
+            'timestamp': int(time.time()),
+            'containers': []
+        }
 
         self.metrics_batch = []
         self.last_flush = time.time()
@@ -96,10 +112,21 @@ class MonitoringAgent:
             }
             await self.alert_sender.send_alert(alert_data)
 
+    def get_latest_metrics(self) -> dict:
+        """Get latest metrics for API server"""
+        return self.latest_metrics
+
     async def process_metrics(self, metrics: dict):
         node_metrics = metrics.get('node', {})
         containers = metrics.get('containers', [])
         timestamp = int(time.time())
+
+        # Update latest metrics for API server
+        self.latest_metrics = {
+            'node_name': self.node_name,
+            'timestamp': timestamp,
+            'containers': containers
+        }
 
         if node_metrics:
             node_line = (f"nodes,node={self.node_name} "
@@ -140,6 +167,10 @@ class MonitoringAgent:
         self.running = True
         logger.info(f"Starting monitoring agent on {self.node_name}")
 
+        # Start API server if enabled
+        if self.api_server:
+            await self.api_server.start(self.get_latest_metrics)
+
         while self.running:
             try:
                 loop_start = time.time()
@@ -157,6 +188,11 @@ class MonitoringAgent:
                 await asyncio.sleep(5)
 
         await self.flush_metrics()
+
+        # Stop API server
+        if self.api_server:
+            await self.api_server.stop()
+
         logger.info("Monitoring agent stopped")
 
 
