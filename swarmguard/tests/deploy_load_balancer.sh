@@ -33,16 +33,11 @@ echo "  - LB port: 8081"
 echo "  - Metrics port: 8082"
 echo ""
 
-echo "[1/4] Building Docker image..."
-cd /Users/amirmuz/code/claude_code/fyp_everything/swarmguard/load-balancer
-docker build -t ${IMAGE} .
+echo "[1/3] Pulling latest image from registry..."
+ssh master "docker pull ${IMAGE}"
 
 echo ""
-echo "[2/4] Pushing to registry..."
-docker push ${IMAGE}
-
-echo ""
-echo "[3/4] Deploying to Docker Swarm (master node)..."
+echo "[2/3] Deploying to Docker Swarm (master node)..."
 
 # Remove existing service if it exists
 ssh master "docker service rm intelligent-lb 2>/dev/null || true"
@@ -74,7 +69,7 @@ ssh master "docker service create \
   ${IMAGE}"
 
 echo ""
-echo "[4/4] Waiting for service to be ready..."
+echo "[3/3] Waiting for service to be ready..."
 sleep 10
 
 echo ""
