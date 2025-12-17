@@ -1,5 +1,14 @@
 #!/bin/bash
 # Deploy web-stress test application (pulls from registry)
+#
+# Healthcheck settings configured for load testing:
+#   --health-interval 15s: Check every 15s (less frequent than default 5s)
+#   --health-timeout 10s: Allow 10s for response (more than default 3s)
+#   --health-retries 5: Require 5 consecutive failures before restart
+#   --health-start-period 30s: Grace period on startup
+#
+# This prevents Docker from restarting containers during heavy load testing
+# while still monitoring for actual crashes/failures.
 
 set -e
 
@@ -21,8 +30,10 @@ ssh master "docker service create \
   --network swarmguard-net \
   --publish 8080:8080 \
   --health-cmd 'curl -f http://localhost:8080/health || exit 1' \
-  --health-interval 5s \
-  --health-timeout 3s \
+  --health-interval 15s \
+  --health-timeout 10s \
+  --health-retries 5 \
+  --health-start-period 30s \
   ${IMAGE}"
 
 echo ""
