@@ -12,6 +12,11 @@ import logging
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 from aiohttp import web, ClientSession, ClientTimeout
+
+# Import requests_unixsocket to enable Unix socket support
+import requests_unixsocket
+requests_unixsocket.monkeypatch()
+
 import docker
 
 # Configure logging
