@@ -139,9 +139,9 @@ class LoadBalancer:
 
             logger.info(f"Docker socket found at {socket_path}")
 
-            # Create Docker client using direct socket connection
-            # The docker library expects just the socket path with unix://
-            self.docker_client = docker.DockerClient(base_url=f'unix:/{socket_path}')
+            # Use docker.from_env() which reads DOCKER_HOST from environment
+            # We already set DOCKER_HOST=unix:///var/run/docker.sock in deployment
+            self.docker_client = docker.from_env()
 
             # Test connection
             self.docker_client.ping()
