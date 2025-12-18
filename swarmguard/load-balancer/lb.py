@@ -201,13 +201,17 @@ class LoadBalancer:
             return
 
         try:
-            # Get service
-            services = self.docker_client.services.list(filters={'name': self.target_service})
-            if not services:
-                logger.warning(f"Service {self.target_service} not found")
-                return
-
-            service = services[0]
+            # Get service - try exact match first, then fallback to list all
+            try:
+                service = self.docker_client.services.get(self.target_service)
+            except docker.errors.NotFound:
+                # Fallback: list all services and find by name
+                all_services = self.docker_client.services.list()
+                matching = [s for s in all_services if s.name == self.target_service]
+                if not matching:
+                    logger.warning(f"Service {self.target_service} not found")
+                    return
+                service = matching[0]
             tasks = service.tasks(filters={'desired-state': 'running'})
 
             new_replicas = {}
