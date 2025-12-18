@@ -204,14 +204,21 @@ class LoadBalancer:
             # Get service - try exact match first, then fallback to list all
             try:
                 service = self.docker_client.services.get(self.target_service)
+                logger.debug(f"Found service {self.target_service} using direct get()")
             except docker.errors.NotFound:
                 # Fallback: list all services and find by name
                 all_services = self.docker_client.services.list()
+                logger.debug(f"Listed {len(all_services)} total services, searching for {self.target_service}")
                 matching = [s for s in all_services if s.name == self.target_service]
                 if not matching:
-                    logger.warning(f"Service {self.target_service} not found")
+                    service_names = [s.name for s in all_services]
+                    logger.warning(f"Service {self.target_service} not found. Available services: {service_names}")
                     return
                 service = matching[0]
+                logger.debug(f"Found service {self.target_service} via list filtering")
+            except Exception as e:
+                logger.error(f"Error getting service: {e}")
+                return
             tasks = service.tasks(filters={'desired-state': 'running'})
 
             new_replicas = {}
@@ -257,7 +264,13 @@ class LoadBalancer:
                         logger.error(f"Error processing task {task_id}: {e}")
 
             self.healthy_replicas = {k: v for k, v in new_replicas.items() if v['healthy']}
-            logger.debug(f"Discovered {len(self.healthy_replicas)} healthy replicas")
+
+            if len(self.healthy_replicas) > 0:
+                logger.info(f"Discovered {len(self.healthy_replicas)} healthy replicas for service {self.target_service}")
+                for replica_id, info in self.healthy_replicas.items():
+                    logger.info(f"  - {replica_id} at {info['container_ip']}")
+            else:
+                logger.warning(f"No healthy replicas found for service {self.target_service} (total tasks: {len(tasks)})")
 
         except Exception as e:
             logger.error(f"Error discovering replicas: {e}")
