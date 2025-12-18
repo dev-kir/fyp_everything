@@ -143,8 +143,13 @@ class LoadBalancer:
 
             logger.info(f"Docker socket found at {socket_path}")
 
-            # Use explicit unix socket path (single forward slash after unix:)
-            self.docker_client = docker.DockerClient(base_url=f'unix://{socket_path}')
+            # Use http+unix:// URL format with URL-encoded socket path
+            import urllib.parse
+            encoded_socket = urllib.parse.quote(socket_path, safe='')
+            base_url = f'http+unix://{encoded_socket}'
+
+            logger.info(f"Connecting to Docker with base_url: {base_url}")
+            self.docker_client = docker.DockerClient(base_url=base_url)
 
             # Test connection
             self.docker_client.ping()
