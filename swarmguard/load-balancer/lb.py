@@ -130,8 +130,17 @@ class LoadBalancer:
 
         # Docker client - connect to Docker daemon
         try:
-            # Use from_env() which automatically handles socket connection
-            self.docker_client = docker.from_env()
+            # Try multiple connection methods
+            import os
+            socket_path = '/var/run/docker.sock'
+
+            # Check if socket exists
+            if not os.path.exists(socket_path):
+                raise Exception(f"Docker socket not found at {socket_path}")
+
+            # Use explicit unix socket path (single forward slash after unix:)
+            self.docker_client = docker.DockerClient(base_url=f'unix://{socket_path}')
+
             # Test connection
             self.docker_client.ping()
             logger.info("Docker client connected successfully")
