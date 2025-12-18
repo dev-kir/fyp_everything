@@ -12,12 +12,8 @@ import logging
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 from aiohttp import web, ClientSession, ClientTimeout
-
-# Import requests_unixsocket to enable Unix socket support
-import requests_unixsocket
-requests_unixsocket.monkeypatch()
-
 import docker
+import docker.transport
 
 # Configure logging
 logging.basicConfig(
@@ -143,13 +139,9 @@ class LoadBalancer:
 
             logger.info(f"Docker socket found at {socket_path}")
 
-            # Use http+unix:// URL format with URL-encoded socket path
-            import urllib.parse
-            encoded_socket = urllib.parse.quote(socket_path, safe='')
-            base_url = f'http+unix://{encoded_socket}'
-
-            logger.info(f"Connecting to Docker with base_url: {base_url}")
-            self.docker_client = docker.DockerClient(base_url=base_url)
+            # Create Docker client using direct socket connection
+            # The docker library expects just the socket path with unix://
+            self.docker_client = docker.DockerClient(base_url=f'unix:/{socket_path}')
 
             # Test connection
             self.docker_client.ping()
