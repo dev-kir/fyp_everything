@@ -50,6 +50,7 @@ ssh master "docker service create \
   --network swarmguard-net \
   --publish 8081:8081 \
   --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --env DOCKER_HOST=unix:///var/run/docker.sock \
   --env WORKER_NODES=worker-1,worker-2,worker-3,worker-4 \
   --env LB_PORT=8081 \
   --env TARGET_SERVICE=web-stress \
