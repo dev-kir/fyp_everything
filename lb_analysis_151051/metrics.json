@@ -1,0 +1,20 @@
+{
+  "total_requests": 24919,
+  "algorithm": "lease",
+  "healthy_replicas": 2,
+  "active_leases": {},
+  "replica_details": {
+    "worker-1:web-stress.ajqe8sdzpi39": {
+      "node": "worker-1",
+      "task_id": "ajqe8sdzpi39",
+      "container_ip": "10.0.7.179",
+      "healthy": true
+    },
+    "worker-4:web-stress.jx22b99ped2l": {
+      "node": "worker-4",
+      "task_id": "jx22b99ped2l",
+      "container_ip": "10.0.7.180",
+      "healthy": true
+    }
+  }
+}
