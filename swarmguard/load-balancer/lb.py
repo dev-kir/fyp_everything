@@ -129,6 +129,10 @@ class LoadBalancer:
         self.round_robin_index = 0
         self.request_count = 0
 
+        # Per-replica request counters for metrics
+        self.replica_request_counts: Dict[str, int] = defaultdict(int)
+        self.replica_last_selected: Dict[str, float] = {}
+
         # Docker client - connect to Docker daemon
         try:
             socket_path = '/var/run/docker.sock'
@@ -335,8 +339,9 @@ class LoadBalancer:
         # Acquire lease
         lease_id = await self.lease_manager.acquire_lease(replica_id)
 
-        if self.debug_routing:
-            logger.info(f"[LEASE] Selected {replica_id} (leases: {lease_count}) - lease_id: {lease_id[:8]}")
+        # Log routing decision (INFO level to show in logs)
+        all_lease_counts = ', '.join([f"{rid.split(':')[0]}: {cnt}" for rid, cnt in sorted(lease_counts.items())])
+        logger.info(f"[LEASE-ROUTING] Selected {replica_id.split(':')[0]} (current leases: {lease_count}) | All leases: [{all_lease_counts}]")
 
         return replica_id, self.healthy_replicas[replica_id], lease_id
 
@@ -451,11 +456,6 @@ class LoadBalancer:
         """Proxy incoming request to selected replica"""
         self.request_count += 1
 
-        # Log periodically
-        if self.request_count % self.log_every_n == 0:
-            lease_counts = self.lease_manager.get_all_lease_counts()
-            logger.info(f"Processed {self.request_count} requests. Active leases: {lease_counts}")
-
         # Select replica
         selection = await self.select_replica()
         if not selection:
@@ -463,6 +463,16 @@ class LoadBalancer:
 
         replica_id, replica_info, lease_id = selection
         container_ip = replica_info['container_ip']
+
+        # Track request count for this replica
+        self.replica_request_counts[replica_id] += 1
+        self.replica_last_selected[replica_id] = time.time()
+
+        # Log periodically with distribution stats
+        if self.request_count % self.log_every_n == 0:
+            lease_counts = self.lease_manager.get_all_lease_counts()
+            req_dist = {k.split(':')[0]: v for k, v in self.replica_request_counts.items()}
+            logger.info(f"Total requests: {self.request_count} | Request distribution: {req_dist} | Active leases: {lease_counts}")
 
         # Proxy the request
         target_url = f"http://{container_ip}:8080{request.path_qs}"
@@ -506,15 +516,24 @@ class LoadBalancer:
         """Metrics endpoint"""
         lease_counts = self.lease_manager.get_all_lease_counts()
 
-        # Calculate request distribution
-        # Note: This would require tracking per-replica request counts
+        # Build per-replica statistics
+        replica_stats = {}
+        for replica_id, info in self.healthy_replicas.items():
+            replica_stats[replica_id] = {
+                'node': info['node'],
+                'container_ip': info['container_ip'],
+                'healthy': info['healthy'],
+                'request_count': self.replica_request_counts.get(replica_id, 0),
+                'active_leases': lease_counts.get(replica_id, 0),
+                'last_selected': self.replica_last_selected.get(replica_id, 0)
+            }
 
         return web.json_response({
             'total_requests': self.request_count,
             'algorithm': self.algorithm,
             'healthy_replicas': len(self.healthy_replicas),
             'active_leases': lease_counts,
-            'replica_details': self.healthy_replicas
+            'replica_stats': replica_stats
         })
 
     async def run(self):
