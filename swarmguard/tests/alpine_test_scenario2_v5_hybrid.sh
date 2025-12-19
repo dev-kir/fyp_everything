@@ -34,8 +34,8 @@ USERS_PER_ALPINE=${6:-15}
 # Alpine nodes
 ALPINE_NODES=("alpine-1" "alpine-2" "alpine-3" "alpine-4")
 
-# Service URL
-SERVICE_URL="http://192.168.2.50:8080"
+# Service URL - Use port 8081 for intelligent LB, 8080 for Docker round-robin
+SERVICE_URL="${SERVICE_URL:-http://192.168.2.50:8081}"
 
 # Colors
 GREEN='\033[0;32m'
