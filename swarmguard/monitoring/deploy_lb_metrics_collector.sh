@@ -7,20 +7,11 @@ REGISTRY="docker-registry.amirmuz.com"
 IMAGE="${REGISTRY}/lb-metrics-collector:latest"
 
 echo "==========================================="
-echo "Building & Deploying LB Metrics Collector"
+echo "Deploying LB Metrics Collector"
 echo "==========================================="
 echo ""
 
-echo "[1/3] Building Docker image..."
-cd "$(dirname "$0")"
-docker build -t ${IMAGE} .
-
-echo ""
-echo "[2/3] Pushing to registry..."
-docker push ${IMAGE}
-
-echo ""
-echo "[3/3] Deploying to Docker Swarm (master node)..."
+echo "[1/2] Deploying to Docker Swarm (master node)..."
 
 # Remove existing service if it exists
 ssh master "docker service rm lb-metrics-collector 2>/dev/null || true"
@@ -44,7 +35,7 @@ ssh master "docker service create \
   ${IMAGE}"
 
 echo ""
-echo "Waiting for service to be ready..."
+echo "[2/2] Waiting for service to be ready..."
 sleep 5
 
 echo ""
@@ -65,4 +56,7 @@ echo "  - lb_replica_metrics: Per-replica stats (request_count, active_leases by
 echo ""
 echo "To view logs:"
 echo "  ssh master 'docker service logs -f lb-metrics-collector'"
+echo ""
+echo "To import Grafana dashboard:"
+echo "  http://192.168.2.61:3000 → Import → Upload monitoring/SwarmGuard_LB_Dashboard.json"
 echo ""
