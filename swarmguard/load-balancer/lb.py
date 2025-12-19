@@ -233,13 +233,27 @@ class LoadBalancer:
                         node_hostname = node.attrs['Description']['Hostname']
 
                         # Get container IP from task networks
+                        # IMPORTANT: Use swarmguard-net IP, not ingress IP
                         networks = task.get('NetworksAttachments', [])
                         container_ip = None
                         for network in networks:
-                            addresses = network.get('Addresses', [])
-                            if addresses:
-                                container_ip = addresses[0].split('/')[0]
-                                break
+                            # Prefer swarmguard-net over ingress
+                            network_name = network.get('Network', {}).get('Spec', {}).get('Name', '')
+                            if network_name == 'swarmguard-net':
+                                addresses = network.get('Addresses', [])
+                                if addresses:
+                                    container_ip = addresses[0].split('/')[0]
+                                    logger.debug(f"Using swarmguard-net IP {container_ip} for task {task_id}")
+                                    break
+
+                        # Fallback: use any network if swarmguard-net not found
+                        if not container_ip:
+                            for network in networks:
+                                addresses = network.get('Addresses', [])
+                                if addresses:
+                                    container_ip = addresses[0].split('/')[0]
+                                    logger.warning(f"swarmguard-net not found, using fallback IP {container_ip} for task {task_id}")
+                                    break
 
                         if not container_ip:
                             logger.warning(f"Task {task_id} on {node_hostname}: No container IP found in NetworksAttachments")
