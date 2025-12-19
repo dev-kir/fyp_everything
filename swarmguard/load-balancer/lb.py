@@ -242,6 +242,7 @@ class LoadBalancer:
                                 break
 
                         if not container_ip:
+                            logger.warning(f"Task {task_id} on {node_hostname}: No container IP found in NetworksAttachments")
                             continue
 
                         # Check health
@@ -249,8 +250,10 @@ class LoadBalancer:
                         try:
                             async with session.get(health_url) as resp:
                                 is_healthy = resp.status == 200
-                        except:
+                                logger.debug(f"Health check {health_url}: status={resp.status}, healthy={is_healthy}")
+                        except Exception as e:
                             is_healthy = False
+                            logger.warning(f"Health check failed for {health_url}: {e}")
 
                         replica_id = f"{node_hostname}:{self.target_service}.{task_id}"
                         new_replicas[replica_id] = {
