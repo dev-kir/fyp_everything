@@ -162,29 +162,41 @@ for user_id in $(seq 1 $USERS); do
             exit 0
         fi
 
-        # Use /stress/incremental for continuous additive load
-        # This allows multiple concurrent requests to stack their resource usage
-        # Send requests continuously during the entire duration
+        # Send continuous short-burst requests to maintain sustained load
+        # Strategy: Send 30-second stress requests every 25 seconds (slight overlap)
+        # This keeps load continuous throughout the test, even after scaling
         TEST_END_TIME=$(($(date +%s) + REMAINING_DURATION))
         REQUEST_COUNT=0
 
-        # First request with ramp-up
-        wget -q -O /dev/null --timeout=$((RAMP + 30)) \
-            "$SERVICE_URL/stress/incremental?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=30&ramp=$RAMP" \
-            2>&1 && echo "  [$NODE_NAME] User $user_id: initial stress activated (T+${USER_DELAY}s)"
-        REQUEST_COUNT=$((REQUEST_COUNT + 1))
+        echo "  [$NODE_NAME] User $user_id: starting continuous traffic (T+${USER_DELAY}s)"
 
-        # Continue sending requests every 20 seconds to maintain load
+        # Keep sending requests until test duration ends
         while [ $(date +%s) -lt $TEST_END_TIME ]; do
-            # Send continuous requests with no ramp (already ramped up)
-            wget -q -O /dev/null --timeout=35 \
-                "$SERVICE_URL/stress/incremental?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=30&ramp=0" \
+            # Calculate time left
+            TIME_LEFT=$((TEST_END_TIME - $(date +%s)))
+
+            # For first request only, use the ramp period
+            if [ $REQUEST_COUNT -eq 0 ]; then
+                CURRENT_RAMP=$RAMP
+            else
+                CURRENT_RAMP=0  # No ramp for subsequent requests
+            fi
+
+            # Use shorter duration (30s) to allow frequent requests
+            REQUEST_DURATION=30
+            if [ $TIME_LEFT -lt $REQUEST_DURATION ]; then
+                REQUEST_DURATION=$TIME_LEFT
+            fi
+
+            # Send request in background to allow overlapping
+            wget -q -O /dev/null --timeout=$((CURRENT_RAMP + REQUEST_DURATION + 10)) \
+                "$SERVICE_URL/stress/combined?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=$REQUEST_DURATION&ramp=$CURRENT_RAMP" \
                 2>&1 &
 
             REQUEST_COUNT=$((REQUEST_COUNT + 1))
 
-            # Sleep 20s before next request (overlapping 30s requests)
-            sleep 20
+            # Wait 25 seconds before next request (creates 5s overlap with 30s requests)
+            sleep 25
         done
 
         echo "  [$NODE_NAME] User $user_id: completed ${REQUEST_COUNT} requests"
