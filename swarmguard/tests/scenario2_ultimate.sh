@@ -133,7 +133,7 @@ echo ""
 echo -e "${YELLOW}[3/5] Creating Alpine simulation script...${NC}"
 cat > /tmp/scenario2_alpine_user.sh << 'ALPINE_SCRIPT'
 #!/bin/sh
-# Run on Alpine node to simulate staggered users
+# Run on Alpine node to simulate staggered users with continuous traffic
 
 SERVICE_URL="$1"
 USERS="$2"
@@ -162,11 +162,32 @@ for user_id in $(seq 1 $USERS); do
             exit 0
         fi
 
-        # Trigger /stress/combined endpoint
-        # This creates CPU + Memory + Network load simultaneously
-        wget -q -O /dev/null --timeout=$((RAMP + REMAINING_DURATION + 10)) \
-            "$SERVICE_URL/stress/combined?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=$REMAINING_DURATION&ramp=$RAMP" \
-            2>&1 && echo "  [$NODE_NAME] User $user_id: stress activated (T+${USER_DELAY}s)"
+        # Use /stress/incremental for continuous additive load
+        # This allows multiple concurrent requests to stack their resource usage
+        # Send requests continuously during the entire duration
+        TEST_END_TIME=$(($(date +%s) + REMAINING_DURATION))
+        REQUEST_COUNT=0
+
+        # First request with ramp-up
+        wget -q -O /dev/null --timeout=$((RAMP + 30)) \
+            "$SERVICE_URL/stress/incremental?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=30&ramp=$RAMP" \
+            2>&1 && echo "  [$NODE_NAME] User $user_id: initial stress activated (T+${USER_DELAY}s)"
+        REQUEST_COUNT=$((REQUEST_COUNT + 1))
+
+        # Continue sending requests every 20 seconds to maintain load
+        while [ $(date +%s) -lt $TEST_END_TIME ]; do
+            # Send continuous requests with no ramp (already ramped up)
+            wget -q -O /dev/null --timeout=35 \
+                "$SERVICE_URL/stress/incremental?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=30&ramp=0" \
+                2>&1 &
+
+            REQUEST_COUNT=$((REQUEST_COUNT + 1))
+
+            # Sleep 20s before next request (overlapping 30s requests)
+            sleep 20
+        done
+
+        echo "  [$NODE_NAME] User $user_id: completed ${REQUEST_COUNT} requests"
     ) &
 done
 
