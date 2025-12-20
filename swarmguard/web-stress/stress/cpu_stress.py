@@ -29,9 +29,11 @@ def cpu_burn_process(target_percent, ramp_seconds, duration_seconds):
         cycle_start = time.time()
         burn_duration = current_percent / 100.0
 
-        # Busy loop for burn_duration seconds
+        # Busy loop for burn_duration seconds (CPU-intensive work)
+        result = 0
         while (time.time() - cycle_start) < burn_duration:
-            _ = 2 ** 1000
+            for _ in range(10000):
+                result += (_ * 0.5) ** 2  # Force actual computation
 
         # Sleep for the rest of the second
         sleep_time = max(0, 1.0 - (time.time() - cycle_start))
@@ -52,8 +54,9 @@ class CPUStressor:
             end_time = start_time + (target_percent / 100.0)
             while time.time() < end_time:
                 # Maximum intensity calculation
-                for _ in range(100000):
-                    _ = 2 ** 1000
+                result = 0
+                for i in range(100000):
+                    result += (i * 0.5) ** 2  # Force actual computation
             # Sleep for the remaining time
             sleep_time = max(0, 1.0 - (time.time() - start_time))
             if sleep_time > 0:

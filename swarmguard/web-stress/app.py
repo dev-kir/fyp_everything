@@ -197,8 +197,11 @@ async def incremental_stress(
                     cycle_start = time.time()
                     burn_duration = current_percent / 100.0
 
+                    # CPU-intensive work (prevent optimization)
+                    result = 0
                     while time.time() - cycle_start < burn_duration:
-                        _ = 2 ** 1000  # CPU-intensive calculation
+                        for _ in range(10000):
+                            result += (_ * 0.5) ** 2  # Force actual computation
 
                     sleep_time = max(0, 1.0 - (time.time() - cycle_start))
                     if sleep_time > 0:
