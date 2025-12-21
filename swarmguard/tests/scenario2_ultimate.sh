@@ -92,17 +92,36 @@ cleanup() {
     echo ""
     echo -e "${YELLOW}[Cleanup] Stopping all Alpine traffic...${NC}"
     for alpine in "${ALPINE_NODES[@]}"; do
-        ssh "$alpine" "pkill -f 'wget.*stress' 2>/dev/null || true" &
+        # Kill wget processes (both foreground and background)
+        ssh "$alpine" "pkill -9 -f 'wget' 2>/dev/null || true" &
+        # Kill the Alpine script itself
+        ssh "$alpine" "pkill -9 -f 'scenario2_alpine_user.sh' 2>/dev/null || true" &
     done
     wait
 
     # Stop stress on containers
+    echo -e "${YELLOW}[Cleanup] Stopping stress on containers...${NC}"
     curl -s "${SERVICE_URL}/stress/stop" > /dev/null 2>&1 || true
+
+    # Wait for all processes to die
+    sleep 3
 
     echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
 trap cleanup EXIT INT TERM
+
+# Pre-cleanup: Ensure no leftover processes from previous runs
+echo -e "${YELLOW}[0/5] Pre-cleanup: Killing any leftover processes...${NC}"
+for alpine in "${ALPINE_NODES[@]}"; do
+    ssh "$alpine" "pkill -9 -f 'wget' 2>/dev/null || true" &
+    ssh "$alpine" "pkill -9 -f 'scenario2_alpine_user.sh' 2>/dev/null || true" &
+done
+wait
+curl -s "${SERVICE_URL}/stress/stop" > /dev/null 2>&1 || true
+sleep 3
+echo -e "${GREEN}✓ Pre-cleanup complete${NC}"
+echo ""
 
 # Check initial state
 echo -e "${YELLOW}[1/5] Checking initial state...${NC}"
