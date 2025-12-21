@@ -181,44 +181,15 @@ for user_id in $(seq 1 $USERS); do
             exit 0
         fi
 
-        # Send continuous short-burst requests to maintain sustained load
-        # Strategy: Send 30-second stress requests every 25 seconds (slight overlap)
-        # This keeps load continuous throughout the test, even after scaling
-        TEST_END_TIME=$(($(date +%s) + REMAINING_DURATION))
-        REQUEST_COUNT=0
+        # Send ONE long-running stress request for the entire duration
+        # This ensures sustained load throughout the test (no drops, no gaps)
+        # Perfect for demonstrating load distribution after scaling
+        echo "  [$NODE_NAME] User $user_id: starting sustained traffic (T+${USER_DELAY}s)"
 
-        echo "  [$NODE_NAME] User $user_id: starting continuous traffic (T+${USER_DELAY}s)"
-
-        # Keep sending requests until test duration ends
-        while [ $(date +%s) -lt $TEST_END_TIME ]; do
-            # Calculate time left
-            TIME_LEFT=$((TEST_END_TIME - $(date +%s)))
-
-            # For first request only, use the ramp period
-            if [ $REQUEST_COUNT -eq 0 ]; then
-                CURRENT_RAMP=$RAMP
-            else
-                CURRENT_RAMP=0  # No ramp for subsequent requests
-            fi
-
-            # Use shorter duration (30s) to allow frequent requests
-            REQUEST_DURATION=30
-            if [ $TIME_LEFT -lt $REQUEST_DURATION ]; then
-                REQUEST_DURATION=$TIME_LEFT
-            fi
-
-            # Send request in background to allow overlapping
-            wget -q -O /dev/null --timeout=$((CURRENT_RAMP + REQUEST_DURATION + 10)) \
-                "$SERVICE_URL/stress/combined?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=$REQUEST_DURATION&ramp=$CURRENT_RAMP" \
-                2>&1 &
-
-            REQUEST_COUNT=$((REQUEST_COUNT + 1))
-
-            # Wait 25 seconds before next request (creates 5s overlap with 30s requests)
-            sleep 25
-        done
-
-        echo "  [$NODE_NAME] User $user_id: completed ${REQUEST_COUNT} requests"
+        # Single long request with gradual ramp at start
+        wget -q -O /dev/null --timeout=$((RAMP + REMAINING_DURATION + 30)) \
+            "$SERVICE_URL/stress/combined?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=$REMAINING_DURATION&ramp=$RAMP" \
+            2>&1 && echo "  [$NODE_NAME] User $user_id: completed sustained load"
     ) &
 done
 
