@@ -23,8 +23,8 @@ class NetworkStressor:
         # Using master node IP ensures traffic goes through container's network interface
         target_url = "http://192.168.2.50:8080/health"
 
-        # Create payload for upload (1MB = generates ~8 Mbps per request if sent in 1 second)
-        chunk_size = 1024 * 1024  # 1MB payload
+        # Use smaller chunks sent more frequently for smoother traffic
+        chunk_size = 128 * 1024  # 128KB payload (reduced from 1MB for smoother traffic)
 
         while not stop_event.is_set():
             try:
@@ -33,19 +33,21 @@ class NetworkStressor:
 
                 if target_mbps > 0:
                     # Calculate requests per second needed to achieve target bandwidth
-                    # 1MB payload = 8 Mbits, so for 70 Mbps we need ~9 requests/sec
-                    requests_per_second = max(1, target_mbps / 8)
+                    # 128KB payload = 1 Mbit, so for 10 Mbps we need ~10 requests/sec
+                    # More frequent smaller requests = smoother traffic pattern
+                    requests_per_second = max(1, target_mbps)
                     delay = 1.0 / requests_per_second
 
-                    # Generate traffic by making HTTP request with large payload
+                    # Generate traffic by making HTTP request with payload
                     try:
-                        # POST with 1MB body generates upload traffic
-                        # Response generates download traffic
+                        # POST with 128KB body generates upload traffic
+                        # Smaller chunks, more frequent = less spiky
                         data = b'X' * chunk_size
                         response = requests.post(target_url, data=data, timeout=2)
                     except:
                         pass  # Ignore errors, just keep generating traffic
 
+                    # Smaller sleep intervals for smoother traffic
                     time.sleep(delay)
                 else:
                     time.sleep(0.1)
