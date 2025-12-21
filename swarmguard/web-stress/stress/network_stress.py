@@ -23,8 +23,9 @@ class NetworkStressor:
         # Using master node IP ensures traffic goes through container's network interface
         target_url = "http://192.168.2.50:8080/health"
 
-        # Use smaller chunks sent more frequently for smoother traffic
-        chunk_size = 128 * 1024  # 128KB payload (reduced from 1MB for smoother traffic)
+        # Use very small chunks sent continuously for smooth sustained traffic
+        # 16KB chunks sent rapidly = smooth bandwidth curve
+        chunk_size = 16 * 1024  # 16KB payload (very small for continuous flow)
 
         while not stop_event.is_set():
             try:
@@ -32,23 +33,24 @@ class NetworkStressor:
                     target_mbps = self.current_mbps
 
                 if target_mbps > 0:
-                    # Calculate requests per second needed to achieve target bandwidth
-                    # 128KB payload = 1 Mbit, so for 10 Mbps we need ~10 requests/sec
-                    # More frequent smaller requests = smoother traffic pattern
-                    requests_per_second = max(1, target_mbps)
-                    delay = 1.0 / requests_per_second
+                    # Calculate the delay between requests to achieve target bandwidth
+                    # 16KB = 0.128 Mbits, so for 10 Mbps we need ~78 requests/sec
+                    # This means ~0.0128 second delay (12.8ms) - very rapid, very smooth
+                    mbits_per_chunk = (chunk_size * 8) / (1024 * 1024)  # Convert to Mbits
+                    chunks_per_second = target_mbps / mbits_per_chunk
+                    delay = 1.0 / chunks_per_second if chunks_per_second > 0 else 0.1
 
-                    # Generate traffic by making HTTP request with payload
+                    # Generate traffic by making HTTP request with small payload
+                    # Rapid fire small chunks = continuous smooth bandwidth
                     try:
-                        # POST with 128KB body generates upload traffic
-                        # Smaller chunks, more frequent = less spiky
                         data = b'X' * chunk_size
                         response = requests.post(target_url, data=data, timeout=2)
                     except:
                         pass  # Ignore errors, just keep generating traffic
 
-                    # Smaller sleep intervals for smoother traffic
-                    time.sleep(delay)
+                    # Very short sleep for continuous traffic
+                    if delay > 0.01:  # Only sleep if delay is meaningful
+                        time.sleep(delay)
                 else:
                     time.sleep(0.1)
 
