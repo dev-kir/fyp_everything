@@ -214,6 +214,13 @@ for user_id in $(seq 1 $USERS); do
                 REQUEST_DURATION=$TIME_LEFT
             fi
 
+            # Clear accumulated CPU/memory state before new request (for balanced distribution)
+            # Skip on first request to avoid initial cleanup delay
+            if [ $REQUEST_COUNT -gt 0 ]; then
+                wget -q -O /dev/null --timeout=5 "$SERVICE_URL/stress/stop" 2>&1 || true
+                sleep 1
+            fi
+
             # Send request in background to allow overlapping
             wget -q -O /dev/null --timeout=$((CURRENT_RAMP + REQUEST_DURATION + 10)) \
                 "$SERVICE_URL/stress/combined?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=$REQUEST_DURATION&ramp=$CURRENT_RAMP" \
