@@ -47,7 +47,7 @@ RAMP_TIME=${6:-20}
 HOLD_TIME=${7:-180}
 
 SERVICE_URL="http://192.168.2.50:8081"  # Intelligent LB
-ALPINE_NODES=("alpine-1" "alpine-2" "alpine-3" "alpine-4")
+ALPINE_NODES=("alpine-1" "alpine-2" "alpine-3" "alpine-4" "alpine-5")
 
 # Calculate totals
 TOTAL_USERS=$((${#ALPINE_NODES[@]} * USERS_PER_ALPINE))
