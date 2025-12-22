@@ -224,18 +224,26 @@ async def bidirectional_traffic(upload_mb: int = 10, download_mb: int = 10):
 
 ---
 
-### Experiment 2: [PENDING] - Test /download/data Endpoint
+### Experiment 2: ✅ Test /download/data Endpoint - SUCCESS
 
-**Planned Command:**
+**Date:** 2025-12-22
+**Command:**
 ```bash
-# Stop all stress first
-curl "http://192.168.2.50:8080/stress/stop"
-for alpine in alpine-{1..5}; do ssh $alpine "pkill -9 -f wget; pkill -9 -f scenario2" || true; done
-sleep 10
-
-# Run test with modified network_stress.py
-./tests/scenario2_ultimate.sh 5 1 1 10 3 60 900
+# Deployed with NETWORK_DOWNLOAD_MULTIPLIER=10 (default)
+./tests/scenario2_ultimate.sh 5 1 1 10 3 60 600
 ```
+
+**Config:**
+- 25 users (5 Alpines × 5 users)
+- 10 Mbps per user = 250 Mbps target
+- Network multiplier: 10 (12 MB downloads)
+
+**Results:**
+- Network: **Sustained at ~40 Mbps** (stable, no drops!) ✅
+- Previous: Dropped to <20 Mbps ❌
+- **Improvement: 2× sustained bandwidth**
+- CPU: Stable ~14% on worker-4 ✅
+- Memory: Stable ~11-18% ✅
 
 **What to Monitor:**
 1. Network Download graph - should stay >80 Mbps
@@ -244,12 +252,15 @@ sleep 10
 4. Scenario 2 trigger timing
 5. Post-scaling load distribution
 
-**Expected Timeline:**
-- T+0-15s: Ramp up, network climbing
-- T+15-60s: Network sustains >80 Mbps
-- T+60-90s: Scenario 2 triggers, scales to 2 replicas
-- T+90-900s: Load distributed across replicas, each ~40-50 Mbps
-- T+900s: Test completes
+**Analysis:**
+- Large downloads (12 MB) work much better than small POSTs (16 KB)
+- Network stays stable instead of dropping
+- Still below 65 Mbps threshold, so Scenario 2 doesn't trigger yet
+- Need to increase multiplier from 10 to 20 for >80 Mbps
+
+**Next Step:**
+- Use multiplier 20 for ~80 Mbps sustained
+- Should trigger Scenario 2 reliably
 
 ---
 

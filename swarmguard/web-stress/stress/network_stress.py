@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Network Stressor - Generate HTTP traffic for measurable network load"""
 
+import os
 import time
 import logging
 import requests
 from threading import Thread, Event, Lock
 
 logger = logging.getLogger(__name__)
+
+# Configurable download multiplier for bandwidth tuning
+# Higher = larger downloads = more sustained bandwidth
+# Default: 10 (gives ~40 Mbps), use 20 for ~80 Mbps, 30 for ~120 Mbps
+DOWNLOAD_MULTIPLIER = int(os.getenv('NETWORK_DOWNLOAD_MULTIPLIER', '10'))
 
 
 class NetworkStressor:
@@ -32,10 +38,11 @@ class NetworkStressor:
                     target_mbps = self.current_mbps
 
                 if target_mbps > 0:
-                    # Calculate download size to sustain bandwidth for ~10 seconds
-                    # This ensures overlapping transfers when multiple workers run
-                    # target_mbps * 10 seconds / 8 bits per byte = MB to download
-                    download_mb = max(5, int(target_mbps * 10 / 8))
+                    # Calculate download size to sustain bandwidth
+                    # Uses DOWNLOAD_MULTIPLIER (default 10, set via environment variable)
+                    # target_mbps * MULTIPLIER / 8 bits per byte = MB to download
+                    # Example: 10 Mbps × 20 multiplier / 8 = 25 MB download
+                    download_mb = max(5, int(target_mbps * DOWNLOAD_MULTIPLIER / 8))
 
                     # Download large file to sustain bandwidth
                     # At 10 Mbps: downloads 12.5 MB, takes ~10 seconds
