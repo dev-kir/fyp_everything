@@ -18,14 +18,13 @@ class NetworkStressor:
         self.mbps_lock = Lock()
 
     def generate_http_traffic(self, stop_event: Event):
-        """Worker thread that generates HTTP traffic by uploading/downloading data"""
+        """Worker thread that generates HTTP traffic by downloading large files"""
         # Target via published port to force traffic through eth0 (not loopback)
         # Using master node IP ensures traffic goes through container's network interface
-        target_url = "http://192.168.2.50:8080/health"
+        base_url = "http://192.168.2.50:8080"
 
-        # Use very small chunks sent continuously for smooth sustained traffic
-        # 16KB chunks sent rapidly = smooth bandwidth curve
-        chunk_size = 16 * 1024  # 16KB payload (very small for continuous flow)
+        # Use large downloads for sustained bandwidth
+        # Calculate download size based on target bandwidth to ensure continuous transfers
 
         while not stop_event.is_set():
             try:
@@ -33,24 +32,31 @@ class NetworkStressor:
                     target_mbps = self.current_mbps
 
                 if target_mbps > 0:
-                    # Calculate the delay between requests to achieve target bandwidth
-                    # 16KB = 0.128 Mbits, so for 10 Mbps we need ~78 requests/sec
-                    # This means ~0.0128 second delay (12.8ms) - very rapid, very smooth
-                    mbits_per_chunk = (chunk_size * 8) / (1024 * 1024)  # Convert to Mbits
-                    chunks_per_second = target_mbps / mbits_per_chunk
-                    delay = 1.0 / chunks_per_second if chunks_per_second > 0 else 0.1
+                    # Calculate download size to sustain bandwidth for ~10 seconds
+                    # This ensures overlapping transfers when multiple workers run
+                    # target_mbps * 10 seconds / 8 bits per byte = MB to download
+                    download_mb = max(5, int(target_mbps * 10 / 8))
 
-                    # Generate traffic by making HTTP request with small payload
-                    # Rapid fire small chunks = continuous smooth bandwidth
+                    # Download large file to sustain bandwidth
+                    # At 10 Mbps: downloads 12.5 MB, takes ~10 seconds
+                    # Multiple workers create overlapping downloads = sustained traffic
                     try:
-                        data = b'X' * chunk_size
-                        response = requests.post(target_url, data=data, timeout=2)
-                    except:
-                        pass  # Ignore errors, just keep generating traffic
+                        download_url = f"{base_url}/download/data?size_mb={download_mb}&cpu_work=0"
+                        response = requests.get(download_url, timeout=30, stream=True)
 
-                    # Very short sleep for continuous traffic
-                    if delay > 0.01:  # Only sleep if delay is meaningful
-                        time.sleep(delay)
+                        # Consume the stream to ensure full download
+                        # This creates REAL network traffic measured by monitoring agents
+                        for chunk in response.iter_content(chunk_size=1024*1024):  # 1MB chunks
+                            if stop_event.is_set():
+                                break
+
+                        logger.debug(f"Downloaded {download_mb}MB at target {target_mbps}Mbps")
+                    except Exception as e:
+                        logger.debug(f"Download error: {e}")
+                        time.sleep(1)
+
+                    # Brief pause before next download (allows ramping control)
+                    time.sleep(1)
                 else:
                     time.sleep(0.1)
 
