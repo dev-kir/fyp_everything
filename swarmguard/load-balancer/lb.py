@@ -323,7 +323,7 @@ class LoadBalancer:
         logger.debug(f"Metrics cache updated with {len(new_cache)} replicas")
 
     async def select_replica_lease(self) -> Optional[Tuple[str, Dict, str]]:
-        """Select replica using lease-based algorithm"""
+        """Select replica using lease-based algorithm with request_count tiebreaker"""
         if not self.healthy_replicas:
             logger.warning("No healthy replicas available")
             return None
@@ -333,7 +333,16 @@ class LoadBalancer:
                        for replica_id in self.healthy_replicas.keys()}
 
         # Select replica with minimum leases
-        min_replica = min(lease_counts.items(), key=lambda x: x[1])
+        # IMPORTANT: Use request_count as tiebreaker when lease counts are equal
+        # This fixes the bug where all replicas have 0 leases (requests complete too fast)
+        # and min() would always return the first replica in dictionary order
+        min_replica = min(
+            lease_counts.items(),
+            key=lambda x: (
+                x[1],  # Primary: lease count (prefer fewer active leases)
+                self.replica_request_counts.get(x[0], 0)  # Tiebreaker: total requests (prefer fewer total requests)
+            )
+        )
         replica_id, lease_count = min_replica
 
         # Acquire lease
@@ -341,7 +350,8 @@ class LoadBalancer:
 
         # Log routing decision (INFO level to show in logs)
         all_lease_counts = ', '.join([f"{rid.split(':')[0]}: {cnt}" for rid, cnt in sorted(lease_counts.items())])
-        logger.info(f"[LEASE-ROUTING] Selected {replica_id.split(':')[0]} (current leases: {lease_count}) | All leases: [{all_lease_counts}]")
+        req_counts = ', '.join([f"{rid.split(':')[0]}: {self.replica_request_counts.get(rid, 0)}" for rid in sorted(lease_counts.keys())])
+        logger.info(f"[LEASE-ROUTING] Selected {replica_id.split(':')[0]} (leases: {lease_count}, reqs: {self.replica_request_counts.get(replica_id, 0)}) | All leases: [{all_lease_counts}] | All requests: [{req_counts}]")
 
         return replica_id, self.healthy_replicas[replica_id], lease_id
 
