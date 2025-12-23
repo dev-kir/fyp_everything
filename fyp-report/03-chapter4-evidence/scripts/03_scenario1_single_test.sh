@@ -41,18 +41,18 @@ INITIAL_NODE=$(ssh master "docker service ps web-stress --filter 'desired-state=
 echo "Initial node: $INITIAL_NODE"
 echo "Test $TEST_NUM - Initial_Node: $INITIAL_NODE" >> "$OUTPUT_DIR/03_scenario1_mttr_test${TEST_NUM}.log"
 
-# Trigger Scenario 1 stress test (high CPU, high memory, no network)
-echo "Triggering Scenario 1 stress test..."
-echo "Parameters: CPU=90%, Memory=320000MB, Network=0Mbps, Duration=60s, Ramp=5s"
-echo "SwarmGuard is ENABLED - Should proactively migrate BEFORE OOMKill"
+# Trigger Scenario 1 gradual stress test (high CPU, high memory, no network)
+echo "Triggering Scenario 1 gradual stress test..."
+echo "Parameters: CPU=95%, Memory=25000MB, Network=0Mbps, Duration=120s, Ramp=45s"
+echo "SwarmGuard is ENABLED - Should proactively migrate as degradation increases"
 echo "Test $TEST_NUM - STRESS_STARTED: $(date -Iseconds)" >> "$OUTPUT_DIR/03_scenario1_mttr_test${TEST_NUM}.log"
 
-curl -s "http://192.168.2.50:8080/stress/combined?cpu=90&memory=320000&network=0&duration=60&ramp=5" > /dev/null
+curl -s "http://192.168.2.50:8080/stress/combined?cpu=95&memory=25000&network=0&duration=120&ramp=45" > /dev/null
 echo "✓ Stress test triggered"
 
-echo "SwarmGuard should detect degradation and proactively migrate..."
-echo "Waiting 90 seconds for proactive migration..."
-sleep 90
+echo "SwarmGuard should detect gradual degradation and proactively migrate..."
+echo "Waiting 180 seconds for gradual stress + proactive migration..."
+sleep 180
 
 # Stop monitoring
 kill $MONITOR_PID
