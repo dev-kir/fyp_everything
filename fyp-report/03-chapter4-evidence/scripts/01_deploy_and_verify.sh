@@ -29,38 +29,42 @@ sleep 10
 
 # Deploy in order
 echo "Updating code..."
+cd /Users/amirmuz/fyp_everything/swarmguard
 git fetch origin
 git reset --hard fix-testing-method-v2
 git checkout -f fix-testing-method-v2
 git pull
 
 echo "Creating network..."
-../../../deployment/create_network.sh
-echo "Network created: $(date -Iseconds)" >> ../raw_outputs/01_deployment_log.txt
+./deployment/create_network.sh
+echo "Network created: $(date -Iseconds)" >> /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/raw_outputs/01_deployment_log.txt
 
 echo "Deploying recovery manager..."
-../../../deployment/deploy_recovery_manager.sh
+./deployment/deploy_recovery_manager.sh
 sleep 30
-echo "Recovery manager deployed: $(date -Iseconds)" >> ../raw_outputs/01_deployment_log.txt
+echo "Recovery manager deployed: $(date -Iseconds)" >> /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/raw_outputs/01_deployment_log.txt
 
 echo "Deploying monitoring agents..."
-../../../deployment/deploy_monitoring_agents.sh
+./deployment/deploy_monitoring_agents.sh
 sleep 30
-echo "Monitoring agents deployed: $(date -Iseconds)" >> ../raw_outputs/01_deployment_log.txt
+echo "Monitoring agents deployed: $(date -Iseconds)" >> /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/raw_outputs/01_deployment_log.txt
 
 echo "Deploying load balancer..."
-../../../tests/deploy_load_balancer.sh lease
+./tests/deploy_load_balancer.sh lease
 sleep 15
-echo "Load balancer deployed: $(date -Iseconds)" >> ../raw_outputs/01_deployment_log.txt
+echo "Load balancer deployed: $(date -Iseconds)" >> /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/raw_outputs/01_deployment_log.txt
 
 echo "Deploying LB metrics collector..."
-../../../monitoring/deploy_lb_metrics_collector.sh
+./monitoring/deploy_lb_metrics_collector.sh
 sleep 10
-echo "LB metrics collector deployed: $(date -Iseconds)" >> ../raw_outputs/01_deployment_log.txt
+echo "LB metrics collector deployed: $(date -Iseconds)" >> /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/raw_outputs/01_deployment_log.txt
 
 echo "Deploying web-stress..."
-../../../tests/deploy_web_stress.sh 1 30
-echo "Web-stress deployed: $(date -Iseconds)" >> ../raw_outputs/01_deployment_log.txt
+./tests/deploy_web_stress.sh 1 30
+echo "Web-stress deployed: $(date -Iseconds)" >> /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/raw_outputs/01_deployment_log.txt
+
+# Return to scripts directory
+cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 # Final service list
 echo "Final service list:"

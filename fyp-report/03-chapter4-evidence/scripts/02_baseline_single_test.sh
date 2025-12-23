@@ -16,8 +16,10 @@ mkdir -p ../raw_outputs
 echo "Deploying fresh web-stress service..."
 ssh master "docker service rm web-stress" || true
 sleep 10
-../../../tests/deploy_web_stress.sh 1 30
+cd /Users/amirmuz/fyp_everything/swarmguard
+./tests/deploy_web_stress.sh 1 30
 sleep 30
+cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 # Start availability monitoring in background
 echo "Starting availability monitoring..."
