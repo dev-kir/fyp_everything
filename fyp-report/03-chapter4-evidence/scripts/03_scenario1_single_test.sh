@@ -34,23 +34,23 @@ echo "Monitoring started (PID: $MONITOR_PID)"
 echo "Waiting 30 seconds for baseline..."
 sleep 30
 
-# Get container location and ID
+# Get initial container location
 echo "Finding web-stress container..."
-NODE=$(ssh master "docker service ps web-stress --filter 'desired-state=running' --format '{{.Node}}' | head -n 1")
-echo "Container is running on node: $NODE"
+INITIAL_NODE=$(ssh master "docker service ps web-stress --filter 'desired-state=running' --format '{{.Node}}' | head -n 1")
+echo "Initial node: $INITIAL_NODE"
+echo "Test $TEST_NUM - Initial_Node: $INITIAL_NODE" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
 
-CONTAINER_ID=$(ssh $NODE "docker ps --filter 'name=web-stress' --format '{{.ID}}' | head -n 1")
-echo "Target container: $CONTAINER_ID"
-echo "Test $TEST_NUM - Node: $NODE" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
-echo "Test $TEST_NUM - Container: $CONTAINER_ID" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
-echo "Test $TEST_NUM - FAILURE_INJECTED: $(date -Iseconds)" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
+# Trigger Scenario 1 stress test (high CPU, high memory, low network)
+echo "Triggering Scenario 1 stress test..."
+echo "Parameters: CPU=90%, Memory=900MB, Network=5Mbps, Duration=180s"
+echo "Test $TEST_NUM - STRESS_STARTED: $(date -Iseconds)" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
 
-echo "Injecting failure (killing container on $NODE)..."
-echo "SwarmGuard should proactively migrate BEFORE complete failure..."
-ssh $NODE "docker kill $CONTAINER_ID"
+curl -s "http://192.168.2.50:8080/stress/combined?cpu=90&memory=900&network=5&duration=180&ramp=10" > /dev/null
+echo "✓ Stress test triggered"
 
-echo "Waiting 60 seconds for SwarmGuard proactive recovery..."
-sleep 60
+echo "SwarmGuard should detect degradation and proactively migrate..."
+echo "Waiting 180 seconds for stress test + migration..."
+sleep 180
 
 # Stop monitoring
 kill $MONITOR_PID
@@ -63,9 +63,13 @@ ssh master "docker service ps web-stress --no-trunc" > ../raw_outputs/03_scenari
 echo "Capturing recovery manager logs..."
 ssh master "docker service logs recovery-manager --tail 50" > ../raw_outputs/03_scenario1_recovery_logs_test${TEST_NUM}.txt 2>&1
 
-# Capture monitoring agent logs from the node where failure occurred
-echo "Capturing monitoring agent logs from $NODE..."
-ssh master "docker service logs monitoring-agent-${NODE} --tail 50" > ../raw_outputs/03_scenario1_monitoring_logs_test${TEST_NUM}.txt 2>&1
+# Check final node location
+FINAL_NODE=$(ssh master "docker service ps web-stress --filter 'desired-state=running' --format '{{.Node}}' | head -n 1")
+echo "Final node: $FINAL_NODE" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
+
+# Capture monitoring agent logs from initial node
+echo "Capturing monitoring agent logs from $INITIAL_NODE..."
+ssh master "docker service logs monitoring-agent-${INITIAL_NODE} --tail 50" > ../raw_outputs/03_scenario1_monitoring_logs_test${TEST_NUM}.txt 2>&1
 
 echo "Scenario 1 test $TEST_NUM complete!"
 echo "Results in:"
