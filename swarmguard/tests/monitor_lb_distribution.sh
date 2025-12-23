@@ -10,8 +10,9 @@ echo "Press Ctrl+C to stop"
 echo "=========================================="
 echo ""
 
-# Store previous values to calculate deltas
-declare -A prev_counts
+# File to store previous counts between iterations
+PREV_FILE="/tmp/lb_monitor_prev.txt"
+rm -f "$PREV_FILE"
 
 while true; do
   clear
@@ -37,17 +38,29 @@ while true; do
   echo "Per-Replica Distribution:"
   echo "=========================================="
 
-  # Parse replica stats
+  # Temporary file for new counts
+  NEW_FILE="/tmp/lb_monitor_new.txt"
+  rm -f "$NEW_FILE"
+
+  # Parse replica stats and display
   echo "$response" | jq -r '.replica_stats | to_entries[] |
     "\(.key)|\(.value.request_count)|\(.value.active_leases)"' | \
   while IFS='|' read -r replica_id req_count active_leases; do
     # Extract node name (e.g., worker-2)
     node=$(echo "$replica_id" | cut -d':' -f1)
 
-    # Calculate delta (new requests since last check)
-    prev_count=${prev_counts[$node]:-0}
+    # Save current count for next iteration
+    echo "$node:$req_count" >> "$NEW_FILE"
+
+    # Get previous count
+    prev_count=0
+    if [ -f "$PREV_FILE" ]; then
+      prev_count=$(grep "^$node:" "$PREV_FILE" 2>/dev/null | cut -d':' -f2)
+      prev_count=${prev_count:-0}
+    fi
+
+    # Calculate delta
     delta=$((req_count - prev_count))
-    prev_counts[$node]=$req_count
 
     # Calculate percentage of total
     if [ "$total_requests" -gt 0 ]; then
@@ -56,7 +69,7 @@ while true; do
       percentage="0.0"
     fi
 
-    # Display with color based on delta
+    # Display
     if [ "$delta" -gt 0 ]; then
       printf "  %-12s: %6d requests (%5s%%) | +%-4d new | leases: %d\n" \
         "$node" "$req_count" "$percentage" "$delta" "$active_leases"
@@ -65,6 +78,11 @@ while true; do
         "$node" "$req_count" "$percentage" "-" "$active_leases"
     fi
   done
+
+  # Update previous counts file for next iteration
+  if [ -f "$NEW_FILE" ]; then
+    mv "$NEW_FILE" "$PREV_FILE"
+  fi
 
   echo ""
   echo "=========================================="
