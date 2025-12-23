@@ -34,14 +34,19 @@ echo "Monitoring started (PID: $MONITOR_PID)"
 echo "Waiting 30 seconds for baseline..."
 sleep 30
 
-# Get container ID and kill it
-CONTAINER_ID=$(ssh master "docker ps | grep web-stress | head -n 1 | awk '{print \$1}'")
+# Get container location and ID
+echo "Finding web-stress container..."
+NODE=$(ssh master "docker service ps web-stress --filter 'desired-state=running' --format '{{.Node}}' | head -n 1")
+echo "Container is running on node: $NODE"
+
+CONTAINER_ID=$(ssh $NODE "docker ps --filter 'name=web-stress' --format '{{.ID}}' | head -n 1")
 echo "Target container: $CONTAINER_ID"
+echo "Test $TEST_NUM - Node: $NODE" >> ../raw_outputs/02_baseline_mttr_test${TEST_NUM}.log
 echo "Test $TEST_NUM - Container: $CONTAINER_ID" >> ../raw_outputs/02_baseline_mttr_test${TEST_NUM}.log
 echo "Test $TEST_NUM - FAILURE_INJECTED: $(date -Iseconds)" >> ../raw_outputs/02_baseline_mttr_test${TEST_NUM}.log
 
-echo "Injecting failure (killing container)..."
-ssh master "docker kill $CONTAINER_ID"
+echo "Injecting failure (killing container on $NODE)..."
+ssh $NODE "docker kill $CONTAINER_ID"
 
 echo "Waiting 60 seconds for Docker Swarm reactive recovery..."
 sleep 60
