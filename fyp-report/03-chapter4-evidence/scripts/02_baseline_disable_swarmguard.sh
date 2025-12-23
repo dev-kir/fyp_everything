@@ -16,11 +16,12 @@ ssh master "docker service scale monitoring-agent-worker4=0"
 sleep 10
 
 # Verify SwarmGuard disabled
-mkdir -p ../raw_outputs
-ssh master "docker service ls" > ../raw_outputs/02_baseline_services_disabled.txt
+OUTPUT_DIR="/Users/amirmuz/RESULT_FYP_EVERYTHING"
+mkdir -p "$OUTPUT_DIR"
+ssh master "docker service ls" > "$OUTPUT_DIR/02_baseline_services_disabled.txt"
 
 echo "SwarmGuard disabled. Current services:"
-cat ../raw_outputs/02_baseline_services_disabled.txt
+cat "$OUTPUT_DIR/02_baseline_services_disabled.txt"
 
 echo ""
 echo "Ready for baseline testing!"

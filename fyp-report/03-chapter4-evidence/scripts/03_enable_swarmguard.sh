@@ -17,11 +17,12 @@ echo "Waiting 60 seconds for all agents to be healthy..."
 sleep 60
 
 # Verify SwarmGuard enabled
-mkdir -p ../raw_outputs
-ssh master "docker service ls" > ../raw_outputs/03_scenario1_services_enabled.txt
+OUTPUT_DIR="/Users/amirmuz/RESULT_FYP_EVERYTHING"
+mkdir -p "$OUTPUT_DIR"
+ssh master "docker service ls" > "$OUTPUT_DIR/03_scenario1_services_enabled.txt"
 
 echo "SwarmGuard enabled. Current services:"
-cat ../raw_outputs/03_scenario1_services_enabled.txt
+cat "$OUTPUT_DIR/03_scenario1_services_enabled.txt"
 
 echo ""
 echo "Ready for scenario testing!"

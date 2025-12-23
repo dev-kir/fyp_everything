@@ -10,7 +10,8 @@ TEST_NUM=${1:-1}
 echo "=== Scenario 1 Test $TEST_NUM (Proactive Migration) ==="
 
 # Create output directory
-mkdir -p ../raw_outputs
+OUTPUT_DIR="/Users/amirmuz/RESULT_FYP_EVERYTHING"
+mkdir -p "$OUTPUT_DIR"
 
 # Reset: Deploy fresh web-stress
 echo "Deploying fresh web-stress service..."
@@ -27,7 +28,7 @@ while sleep 0.1; do
   ts=$(date -Iseconds)
   code=$(curl -sf --connect-timeout 0.5 -m 1 -o /dev/null -w '%{http_code}' http://192.168.2.50:8080/health 2>/dev/null || echo "DOWN")
   echo "$ts $code"
-done > ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log &
+done > "$OUTPUT_DIR/03_scenario1_mttr_test${TEST_NUM}.log" &
 MONITOR_PID=$!
 
 echo "Monitoring started (PID: $MONITOR_PID)"
@@ -38,12 +39,13 @@ sleep 30
 echo "Finding web-stress container..."
 INITIAL_NODE=$(ssh master "docker service ps web-stress --filter 'desired-state=running' --format '{{.Node}}' | head -n 1")
 echo "Initial node: $INITIAL_NODE"
-echo "Test $TEST_NUM - Initial_Node: $INITIAL_NODE" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
+echo "Test $TEST_NUM - Initial_Node: $INITIAL_NODE" >> "$OUTPUT_DIR/03_scenario1_mttr_test${TEST_NUM}.log"
 
 # Trigger Scenario 1 stress test (high CPU, high memory, low network)
 echo "Triggering Scenario 1 stress test..."
 echo "Parameters: CPU=90%, Memory=900MB, Network=5Mbps, Duration=180s"
-echo "Test $TEST_NUM - STRESS_STARTED: $(date -Iseconds)" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
+echo "SwarmGuard is ENABLED - Should proactively migrate before crash"
+echo "Test $TEST_NUM - STRESS_STARTED: $(date -Iseconds)" >> "$OUTPUT_DIR/03_scenario1_mttr_test${TEST_NUM}.log"
 
 curl -s "http://192.168.2.50:8080/stress/combined?cpu=90&memory=900&network=5&duration=180&ramp=10" > /dev/null
 echo "✓ Stress test triggered"
@@ -54,26 +56,26 @@ sleep 180
 
 # Stop monitoring
 kill $MONITOR_PID
-echo "Test $TEST_NUM - MONITORING_STOPPED: $(date -Iseconds)" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
+echo "Test $TEST_NUM - MONITORING_STOPPED: $(date -Iseconds)" >> "$OUTPUT_DIR/03_scenario1_mttr_test${TEST_NUM}.log"
 
 # Capture recovery timeline
-ssh master "docker service ps web-stress --no-trunc" > ../raw_outputs/03_scenario1_recovery_timeline_test${TEST_NUM}.txt
+ssh master "docker service ps web-stress --no-trunc" > "$OUTPUT_DIR/03_scenario1_recovery_timeline_test${TEST_NUM}.txt"
 
 # Capture recovery manager logs (last 50 lines to see migration decision)
 echo "Capturing recovery manager logs..."
-ssh master "docker service logs recovery-manager --tail 50" > ../raw_outputs/03_scenario1_recovery_logs_test${TEST_NUM}.txt 2>&1
+ssh master "docker service logs recovery-manager --tail 50" > "$OUTPUT_DIR/03_scenario1_recovery_logs_test${TEST_NUM}.txt" 2>&1
 
 # Check final node location
 FINAL_NODE=$(ssh master "docker service ps web-stress --filter 'desired-state=running' --format '{{.Node}}' | head -n 1")
-echo "Final node: $FINAL_NODE" >> ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log
+echo "Final node: $FINAL_NODE" >> "$OUTPUT_DIR/03_scenario1_mttr_test${TEST_NUM}.log"
 
 # Capture monitoring agent logs from initial node
 echo "Capturing monitoring agent logs from $INITIAL_NODE..."
-ssh master "docker service logs monitoring-agent-${INITIAL_NODE} --tail 50" > ../raw_outputs/03_scenario1_monitoring_logs_test${TEST_NUM}.txt 2>&1
+ssh master "docker service logs monitoring-agent-${INITIAL_NODE} --tail 50" > "$OUTPUT_DIR/03_scenario1_monitoring_logs_test${TEST_NUM}.txt" 2>&1
 
 echo "Scenario 1 test $TEST_NUM complete!"
 echo "Results in:"
-echo "  - ../raw_outputs/03_scenario1_mttr_test${TEST_NUM}.log"
-echo "  - ../raw_outputs/03_scenario1_recovery_timeline_test${TEST_NUM}.txt"
-echo "  - ../raw_outputs/03_scenario1_recovery_logs_test${TEST_NUM}.txt"
-echo "  - ../raw_outputs/03_scenario1_monitoring_logs_test${TEST_NUM}.txt"
+echo "  - $OUTPUT_DIR/03_scenario1_mttr_test${TEST_NUM}.log"
+echo "  - $OUTPUT_DIR/03_scenario1_recovery_timeline_test${TEST_NUM}.txt"
+echo "  - $OUTPUT_DIR/03_scenario1_recovery_logs_test${TEST_NUM}.txt"
+echo "  - $OUTPUT_DIR/03_scenario1_monitoring_logs_test${TEST_NUM}.txt"
