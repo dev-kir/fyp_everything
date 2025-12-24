@@ -67,10 +67,12 @@ LOAD_PID=$!
 cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 echo "SwarmGuard should detect increased load and scale replicas..."
-echo "Monitoring for 5 minutes to capture scaling events..."
+echo "Waiting for load to ramp up (2 minutes)..."
+sleep 120
 
-# Monitor for 5 minutes (300 seconds) to capture scaling
-sleep 300
+echo "Load should be building now. Monitoring for 10 minutes to capture scaling..."
+# Monitor for 10 minutes (600 seconds) to capture scale-up
+sleep 600
 
 # Stop load
 echo "Stopping load test..."
