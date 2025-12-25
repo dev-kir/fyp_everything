@@ -63,7 +63,7 @@ echo "MEASUREMENT 1: BASELINE (No SwarmGuard)"
 echo "=========================================="
 echo "Removing ALL SwarmGuard components..."
 
-# Remove all SwarmGuard services
+# Remove all SwarmGuard services AND web-stress
 ssh master "docker service rm recovery-manager" 2>/dev/null || true
 ssh master "docker service rm monitoring-agent-master" 2>/dev/null || true
 ssh master "docker service rm monitoring-agent-worker1" 2>/dev/null || true
@@ -71,6 +71,7 @@ ssh master "docker service rm monitoring-agent-worker2" 2>/dev/null || true
 ssh master "docker service rm monitoring-agent-worker3" 2>/dev/null || true
 ssh master "docker service rm monitoring-agent-worker4" 2>/dev/null || true
 ssh master "docker service rm load-balancer" 2>/dev/null || true
+ssh master "docker service rm web-stress" 2>/dev/null || true
 
 sleep 30
 echo "✓ All SwarmGuard services removed"
