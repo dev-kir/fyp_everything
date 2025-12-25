@@ -9,11 +9,17 @@ echo "BASELINE SCREENSHOT HELPER"
 echo "=========================================="
 echo ""
 echo "This script will:"
-echo "  1. Deploy fresh web-stress service"
-echo "  2. Wait for you to prepare Grafana"
-echo "  3. Trigger gradual stress (container will crash)"
-echo "  4. Show you when to take screenshots"
-echo "  5. Wait for Docker Swarm reactive recovery"
+echo "  1. DISABLE recovery-manager (but keep monitoring-agents for Grafana)"
+echo "  2. Deploy fresh web-stress service"
+echo "  3. Wait for you to prepare Grafana"
+echo "  4. Trigger gradual stress (container will crash)"
+echo "  5. Show you when to take screenshots"
+echo "  6. Wait for Docker Swarm reactive recovery"
+echo ""
+echo "IMPORTANT:"
+echo "  - monitoring-agents will STAY RUNNING (for Grafana data)"
+echo "  - recovery-manager will be REMOVED (to prevent proactive migration)"
+echo "  - This ensures Grafana has data, but container crashes reactively"
 echo ""
 echo "GRAFANA SETUP:"
 echo "  - Open: http://192.168.2.61:3000"
@@ -22,6 +28,26 @@ echo "  - Time range: Last 15 minutes (auto-refresh: 5s)"
 echo "  - Focus on: web-stress container metrics"
 echo ""
 read -p "Press ENTER when Grafana is ready..."
+
+# Step 0: Disable recovery-manager but keep monitoring-agents
+echo ""
+echo "Step 0: Disabling recovery-manager (keeping monitoring-agents)..."
+ssh master "docker service rm recovery-manager" 2>/dev/null || echo "✓ recovery-manager already removed"
+sleep 5
+
+# Verify monitoring-agents are still running
+echo "Verifying monitoring-agents are running..."
+AGENT_COUNT=$(ssh master "docker service ls --filter 'name=monitoring-agent' --format '{{.Name}}' | wc -l")
+if [ "$AGENT_COUNT" -lt 4 ]; then
+    echo "⚠️  Warning: Only $AGENT_COUNT monitoring-agents found (expected 5)"
+    echo "    Grafana may not have complete data!"
+    read -p "Continue anyway? (y/n): " confirm
+    if [ "$confirm" != "y" ]; then
+        exit 1
+    fi
+else
+    echo "✓ $AGENT_COUNT monitoring-agents running (Grafana will have data)"
+fi
 
 # Reset: Deploy fresh web-stress
 echo ""

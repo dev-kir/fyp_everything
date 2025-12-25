@@ -40,6 +40,11 @@ cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 **Duration**: ~5 minutes
 
+**⚠️ IMPORTANT SETUP**:
+- Script will **DISABLE recovery-manager** (to prevent proactive migration)
+- Script will **KEEP monitoring-agents RUNNING** (so Grafana still has data)
+- This ensures: **Grafana works** + **Container crashes reactively** (no SwarmGuard intervention)
+
 **Screenshots needed** (3 total):
 1. **Before crash**: Healthy baseline
 2. **During crash**: Container crashed, metrics spiking
