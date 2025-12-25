@@ -55,23 +55,24 @@ LB_MONITOR_PID=$!
 
 sleep 10
 
-# Trigger Scenario 2 load test using scenario2_ultimate.sh
+# Trigger Scenario 2 load test using scenario2_ultimate.sh (HYBRID APPROACH)
 echo "Triggering Scenario 2 high-traffic load test using scenario2_ultimate.sh..."
-echo "Parameters: 15 users/alpine, CPU=1%, Memory=10MB, Network=12Mbps per user"
-echo "Total expected: 75% CPU, 750MB Memory, 900 Mbps Network (balanced ramp-up)"
+echo "Parameters: 12 users/alpine, CPU=2%, Memory=8MB, Network=12Mbps per user"
+echo "Total: 60 simulated users (5 Alpines × 12 users)"
+echo "Expected: ~200 Mbps Network, ~70% CPU, ~20% Memory (sustained, distributed load)"
+echo "HYBRID: Each user runs continuous downloads (network) + /stress/combined (CPU/Memory)"
 echo "Network threshold: 65 Mbps | CPU threshold: 75%"
-echo "Strategy: Lower CPU/Memory to match network ramp speed - prevents Scenario 1 false trigger"
 echo "Test $TEST_NUM - LOAD_STARTED: $(date -Iseconds)" >> "$OUTPUT_DIR/04_scenario2_test${TEST_NUM}.log"
 
 # Start the scenario2_ultimate script in background
 cd /Users/amirmuz/fyp_everything/swarmguard
-nohup ./tests/scenario2_ultimate.sh 15 1 10 12 2 80 900 > "$OUTPUT_DIR/04_scenario2_ultimate_output_test${TEST_NUM}.log" 2>&1 &
+nohup ./tests/scenario2_ultimate.sh 12 2 8 12 2 60 900 > "$OUTPUT_DIR/04_scenario2_ultimate_output_test${TEST_NUM}.log" 2>&1 &
 SCENARIO2_PID=$!
 cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 echo "✓ Scenario 2 ultimate script started (PID: $SCENARIO2_PID)"
-echo "Expected: Many small requests creating sustained >65 Mbps network load"
-echo "Expected: Load distribution visible when scaling 1→2→N replicas"
+echo "Expected: 60 users creating sustained network load (downloads + stress requests)"
+echo "Expected: Load distribution ~50/50 across replicas after scaling 1→2"
 
 echo "SwarmGuard should detect increased load and scale replicas..."
 echo "Waiting for load to ramp up (2 minutes)..."
