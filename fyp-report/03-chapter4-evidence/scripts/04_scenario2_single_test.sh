@@ -13,14 +13,22 @@ echo "=== Scenario 2 Test $TEST_NUM (Horizontal Autoscaling) ==="
 OUTPUT_DIR="/Users/amirmuz/RESULT_FYP_EVERYTHING"
 mkdir -p "$OUTPUT_DIR"
 
-# Clean any existing load
+# Clean any existing load first
 echo "Cleaning existing load..."
-curl -s "http://192.168.2.50:8080/stress/stop" > /dev/null
+curl -s "http://192.168.2.50:8080/stress/stop" > /dev/null 2>&1 || true
 for alpine in alpine-1 alpine-2 alpine-3 alpine-4 alpine-5; do
     ssh "$alpine" "pkill -9 -f wget" 2>/dev/null || true
     ssh "$alpine" "pkill -9 -f scenario2_alpine_user.sh" 2>/dev/null || true
 done
-sleep 20
+
+# Reset: Deploy fresh web-stress service for clean state
+echo "Deploying fresh web-stress service..."
+ssh master "docker service rm web-stress" || true
+sleep 10
+cd /Users/amirmuz/fyp_everything/swarmguard
+./tests/deploy_web_stress.sh 1 30
+sleep 30
+cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 # Record initial state
 echo "Recording initial state..."
