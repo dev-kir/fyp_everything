@@ -1,0 +1,14 @@
+ID             NAME                       MODE         REPLICAS   IMAGE                                                         PORTS
+pf605zv4lvx8   cloudflared                replicated   1/1        docker-registry.amirmuz.com/cloudflared:latest                
+3wm96c3onr0i   intelligent-lb             replicated   1/1        docker-registry.amirmuz.com/swarmguard-load-balancer:latest   *:8081->8081/tcp
+3x5882orzi8q   lb-metrics-collector       replicated   1/1        docker-registry.amirmuz.com/lb-metrics-collector:latest       
+k6bwq8ywt70z   mongodb_mongo1             replicated   1/1        docker-registry.amirmuz.com/mongo:6                           
+irwkkj6bit65   mongodb_mongo2             replicated   1/1        docker-registry.amirmuz.com/mongo:6                           
+maglwzun8tez   mongodb_mongo3             replicated   1/1        docker-registry.amirmuz.com/mongo:6                           
+k20we2cjechr   monitoring-agent-master    replicated   1/1        docker-registry.amirmuz.com/swarmguard-agent:latest           
+ulj16uyyq0nv   monitoring-agent-worker1   replicated   1/1        docker-registry.amirmuz.com/swarmguard-agent:latest           
+x3ihcfx758rs   monitoring-agent-worker2   replicated   1/1        docker-registry.amirmuz.com/swarmguard-agent:latest           
+gv1zzyohutnz   monitoring-agent-worker3   replicated   1/1        docker-registry.amirmuz.com/swarmguard-agent:latest           
+z1fkg6ih4upv   monitoring-agent-worker4   replicated   1/1        docker-registry.amirmuz.com/swarmguard-agent:latest           
+p37d96o0l53c   recovery-manager           replicated   1/1        docker-registry.amirmuz.com/swarmguard-manager:latest         *:5000->5000/tcp
+8sj6xni9uq2z   web-stress                 replicated   1/1        docker-registry.amirmuz.com/swarmguard-web-stress:latest      *:8080->8080/tcp

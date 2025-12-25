@@ -1,0 +1,3 @@
+ID                          NAME               IMAGE                                                                                                                              NODE       DESIRED STATE   CURRENT STATE            ERROR     PORTS
+h0q07bc9akm8kbjqn4yx09nmh   web-stress.1       docker-registry.amirmuz.com/swarmguard-web-stress:latest@sha256:d1c1982d4d7b5d01c02d55b42fc28a1fbafd4fe8d7b95929e32483ffa9123016   worker-3   Running         Running 8 minutes ago              
+zbemlzn6j1pmf3htyf7wk89qu    \_ web-stress.1   docker-registry.amirmuz.com/swarmguard-web-stress:latest@sha256:d1c1982d4d7b5d01c02d55b42fc28a1fbafd4fe8d7b95929e32483ffa9123016   worker-3   Shutdown        Shutdown 8 minutes ago             

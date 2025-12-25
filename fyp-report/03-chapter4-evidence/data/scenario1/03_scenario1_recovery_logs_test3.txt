@@ -1,0 +1,50 @@
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:24,185 - docker_controller - WARNING - ⚠️  Did not observe both tasks running (may have had downtime)
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:24,199 - docker_controller - INFO - Final task distribution: {'worker-4': 1}
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:24,204 - docker_controller - INFO - Step 6: Cleaning up migration constraints
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:24,204 - docker_controller - INFO - Constraints: ['node.role==worker', 'node.hostname!=worker-3'] → ['node.role==worker']
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:24,204 - docker_controller - ERROR - Migration error: update() got unexpected keyword arguments 'task_template', 'version'
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:24,204 - __main__ - INFO - Alert processed in 6090ms
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:24,205 - __main__ - WARNING - Alert processing exceeded 1 second: 6090ms
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:24,205 - werkzeug - INFO - 10.0.7.213 - - [24/Dec/2025 09:44:24] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:27,821 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=14.36% MEM=96.91%
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:27,821 - __main__ - INFO - Cooldown active for web-stress: 9s < 60s
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:27,821 - werkzeug - INFO - 10.0.7.213 - - [24/Dec/2025 09:44:27] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:33,144 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=12.78% MEM=96.8%
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:33,144 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:33,145 - werkzeug - INFO - 10.0.7.213 - - [24/Dec/2025 09:44:33] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:37,236 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=14.75% MEM=96.83%
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:37,236 - __main__ - INFO - Cooldown active for web-stress: 19s < 60s
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:44:37,236 - werkzeug - INFO - 10.0.7.213 - - [24/Dec/2025 09:44:37] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:49:57,084 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=13.78% MEM=81.33%
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:49:57,084 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:49:57,084 - werkzeug - INFO - 10.0.7.213 - - [24/Dec/2025 09:49:57] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:02,132 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=14.81% MEM=93.54%
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:02,132 - __main__ - INFO - Executing migration for web-stress from worker-3
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:02,138 - docker_controller - INFO - Zero-downtime migration: web-stress from worker-3 (replicas=1)
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:02,138 - docker_controller - INFO - Step 1: Finding task on worker-3
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:02,143 - docker_controller - INFO - Found old task s521309pz58g on worker-3
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:02,143 - docker_controller - INFO - Step 2: Triggering rolling update with START-FIRST order
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:02,143 - docker_controller - INFO - Constraints: ['node.role==worker', 'node.hostname!=master'] → ['node.role==worker', 'node.hostname!=worker-3']
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:02,147 - docker_controller - INFO - Step 3: Rolling update with START-FIRST initiated - new task will start before old stops
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:02,147 - docker_controller - INFO - Step 4: Monitoring START-FIRST rolling update (timeout 40s)
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:04,155 - docker_controller - INFO - Running tasks: [('s521309pz58g', 'worker-3')] (old=True, new=False)
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:06,170 - docker_controller - INFO - Running tasks: [('s521309pz58g', 'worker-3')] (old=True, new=False)
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,186 - docker_controller - INFO - Running tasks: [('r8pnpbcma0mw', 'worker-1')] (old=False, new=True)
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,186 - docker_controller - INFO - ✅ Rolling update complete: New task r8pnpbcma0mw on worker-1
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,186 - docker_controller - WARNING - ⚠️  Did not observe both tasks running (may have had downtime)
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,201 - docker_controller - INFO - Final task distribution: {'worker-1': 1}
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,205 - docker_controller - INFO - Step 6: Cleaning up migration constraints
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,205 - docker_controller - INFO - Constraints: ['node.role==worker', 'node.hostname!=worker-3'] → ['node.role==worker']
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,206 - docker_controller - ERROR - Migration error: update() got unexpected keyword arguments 'task_template', 'version'
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,206 - __main__ - INFO - Alert processed in 6074ms
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,206 - __main__ - WARNING - Alert processing exceeded 1 second: 6074ms
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:08,207 - werkzeug - INFO - 10.0.7.213 - - [24/Dec/2025 09:50:08] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:12,905 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=14.4% MEM=96.43%
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:12,905 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:12,905 - werkzeug - INFO - 10.0.7.213 - - [24/Dec/2025 09:50:12] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:16,747 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=14.96% MEM=96.42%
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:16,748 - __main__ - INFO - Cooldown active for web-stress: 14s < 60s
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:16,748 - werkzeug - INFO - 10.0.7.213 - - [24/Dec/2025 09:50:16] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:21,420 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=14.95% MEM=96.37%
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:21,420 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.rabphq9c2nrl@master    | 2025-12-24 09:50:21,421 - werkzeug - INFO - 10.0.7.213 - - [24/Dec/2025 09:50:21] "POST /alert HTTP/1.1" 200 -

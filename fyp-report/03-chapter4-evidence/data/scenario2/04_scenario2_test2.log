@@ -1,0 +1,6 @@
+Test 2 - START: 2025-12-25T17:22:04+08:00
+Initial replica count:
+sywo2anpgq81   web-stress                 replicated   1/1        docker-registry.amirmuz.com/swarmguard-web-stress:latest      *:8080->8080/tcp
+Test 2 - LOAD_STARTED: 2025-12-25T17:22:14+08:00
+Test 2 - LOAD_STOPPED: 2025-12-25T17:35:01+08:00
+Test 2 - MONITORING_STOPPED: 2025-12-25T17:38:01+08:00

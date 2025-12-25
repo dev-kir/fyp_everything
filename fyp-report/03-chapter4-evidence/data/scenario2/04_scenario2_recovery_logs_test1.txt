@@ -1,0 +1,100 @@
+recovery-manager.1.bm6mwomyxnui@master    |  * Running on http://127.0.0.1:5000
+recovery-manager.1.bm6mwomyxnui@master    |  * Running on http://172.18.0.3:5000
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:40:52,612 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:41:02,950 - werkzeug - INFO - 10.0.0.2 - - [25/Dec/2025 07:41:02] "GET /health HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:27,291 - __main__ - INFO - Alert: web-stress on worker-3 - scenario2_scaling - CPU=89.39% MEM=27.07%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:27,291 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:27,291 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 07:49:27] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:32,278 - __main__ - INFO - Alert: web-stress on worker-3 - scenario2_scaling - CPU=79.7% MEM=29.7%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:32,278 - __main__ - INFO - Executing scale-up for web-stress
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:32,280 - docker_controller - INFO - Scaling web-stress from 1 to 2 replicas
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:32,285 - docker_controller - INFO - Scale-up successful: web-stress scaled to 2 (0.01s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:32,285 - __main__ - INFO - Alert processed in 7ms
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:32,285 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 07:49:32] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:37,278 - __main__ - INFO - Alert: web-stress on worker-3 - scenario2_scaling - CPU=77.81% MEM=29.47%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:37,278 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:37,278 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 07:49:37] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:42,280 - __main__ - INFO - Alert: web-stress on worker-3 - scenario2_scaling - CPU=76.45% MEM=29.02%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:42,281 - __main__ - INFO - Cooldown active for web-stress: 10s < 60s
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:49:42,281 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 07:49:42] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:52:52,654 - __main__ - INFO - Scale-down candidate: web-stress idle detected (will scale down after 180s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:54:05,917 - __main__ - INFO - Alert: web-stress on worker-1 - scenario2_scaling - CPU=78.53% MEM=15.51%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:54:05,917 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:54:05,917 - werkzeug - INFO - 10.0.7.57 - - [25/Dec/2025 07:54:05] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:55:52,670 - __main__ - INFO - Scale-down triggered: web-stress idle for 180s (threshold: 180s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:55:52,670 - __main__ - INFO - Current: 2 replicas, CPU=60.0%, MEM=70.0%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:55:52,670 - __main__ - INFO - After scale-down: 1 replicas can handle load (CPU<75.0%, MEM<80.0%)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:55:52,672 - docker_controller - INFO - Scaling web-stress from 2 to 1 replicas
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:55:52,680 - docker_controller - INFO - Scale-down successful: web-stress scaled to 1 (0.01s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 07:55:52,680 - __main__ - INFO - ✅ Scale-down successful: web-stress 2 → 1
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:05:12,703 - __main__ - INFO - Alert: web-stress on worker-3 - scenario2_scaling - CPU=76.92% MEM=30.71%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:05:12,703 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:05:12,703 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 08:05:12] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:06:02,731 - __main__ - INFO - Alert: web-stress on worker-3 - scenario2_scaling - CPU=80.13% MEM=35.02%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:06:02,731 - __main__ - INFO - Executing scale-up for web-stress
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:06:02,733 - docker_controller - INFO - Scaling web-stress from 1 to 2 replicas
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:06:02,738 - docker_controller - INFO - Scale-up successful: web-stress scaled to 2 (0.01s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:06:02,738 - __main__ - INFO - Alert processed in 7ms
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:06:02,738 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 08:06:02] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:06:17,751 - __main__ - INFO - Alert: web-stress on worker-3 - scenario2_scaling - CPU=85.71% MEM=38.5%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:06:17,751 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:06:17,751 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 08:06:17] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:14:07,937 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=78.61% MEM=29.39%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:14:07,938 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:14:07,938 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 08:14:07] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:15:02,962 - __main__ - INFO - Alert: web-stress on worker-3 - scenario2_scaling - CPU=80.72% MEM=23.73%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:15:02,962 - __main__ - INFO - Executing scale-up for web-stress
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:15:02,964 - docker_controller - INFO - Scaling web-stress from 1 to 2 replicas
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:15:02,972 - docker_controller - INFO - Scale-up successful: web-stress scaled to 2 (0.01s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:15:02,972 - __main__ - INFO - Alert processed in 10ms
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:15:02,973 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 08:15:02] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:18:52,761 - __main__ - INFO - Scale-down candidate: web-stress idle detected (will scale down after 180s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:21:52,778 - __main__ - INFO - Scale-down triggered: web-stress idle for 180s (threshold: 180s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:21:52,778 - __main__ - INFO - Current: 2 replicas, CPU=60.0%, MEM=70.0%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:21:52,778 - __main__ - INFO - After scale-down: 1 replicas can handle load (CPU<75.0%, MEM<80.0%)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:21:52,779 - docker_controller - INFO - Scaling web-stress from 2 to 1 replicas
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:21:52,784 - docker_controller - INFO - Scale-down successful: web-stress scaled to 1 (0.01s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:21:52,784 - __main__ - INFO - ✅ Scale-down successful: web-stress 2 → 1
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:48:00,592 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=85.58% MEM=27.96%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:48:00,592 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:48:00,592 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 08:48:00] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:05,617 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=79.78% MEM=24.55%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:05,617 - __main__ - INFO - Executing migration for web-stress from worker-3
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:05,623 - docker_controller - INFO - Zero-downtime migration: web-stress from worker-3 (replicas=1)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:05,624 - docker_controller - INFO - Step 1: Finding task on worker-3
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:05,628 - docker_controller - INFO - Found old task erzq2so8rsvj on worker-3
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:05,628 - docker_controller - INFO - Step 2: Triggering rolling update with START-FIRST order
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:05,628 - docker_controller - INFO - Constraints: ['node.role==worker', 'node.hostname!=master'] → ['node.role==worker', 'node.hostname!=worker-3']
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:05,632 - docker_controller - INFO - Step 3: Rolling update with START-FIRST initiated - new task will start before old stops
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:05,632 - docker_controller - INFO - Step 4: Monitoring START-FIRST rolling update (timeout 40s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:07,638 - docker_controller - INFO - Running tasks: [('erzq2so8rsvj', 'worker-3')] (old=True, new=False)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:09,643 - docker_controller - INFO - Running tasks: [('erzq2so8rsvj', 'worker-3')] (old=True, new=False)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,651 - docker_controller - INFO - Running tasks: [('ydcm1jov03ta', 'worker-4')] (old=False, new=True)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,651 - docker_controller - INFO - ✅ Rolling update complete: New task ydcm1jov03ta on worker-4
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,652 - docker_controller - WARNING - ⚠️  Did not observe both tasks running (may have had downtime)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,658 - docker_controller - INFO - Final task distribution: {'worker-4': 1}
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,660 - docker_controller - INFO - Step 6: Cleaning up migration constraints
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,660 - docker_controller - INFO - Constraints: ['node.role==worker', 'node.hostname!=worker-3'] → ['node.role==worker']
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,660 - docker_controller - ERROR - Migration error: update() got unexpected keyword arguments 'task_template', 'version'
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,661 - __main__ - INFO - Alert processed in 6044ms
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,661 - __main__ - WARNING - Alert processing exceeded 1 second: 6044ms
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:49:11,661 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 08:49:11] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:51:33,779 - __main__ - INFO - Alert: web-stress on worker-4 - scenario1_migration - CPU=82.15% MEM=21.71%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:51:33,779 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:51:33,779 - werkzeug - INFO - 10.0.7.66 - - [25/Dec/2025 08:51:33] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:56:50,909 - __main__ - INFO - Alert: web-stress on worker-3 - scenario1_migration - CPU=82.97% MEM=27.66%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:56:50,909 - __main__ - INFO - Breach 1/2 for web-stress - waiting
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:56:50,909 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 08:56:50] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:57:45,928 - __main__ - INFO - Alert: web-stress on worker-3 - scenario2_scaling - CPU=75.15% MEM=23.32%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:57:45,928 - __main__ - INFO - Executing scale-up for web-stress
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:57:45,930 - docker_controller - INFO - Scaling web-stress from 1 to 2 replicas
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:57:45,935 - docker_controller - INFO - Scale-up successful: web-stress scaled to 2 (0.01s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:57:45,935 - __main__ - INFO - Alert processed in 7ms
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 08:57:45,935 - werkzeug - INFO - 10.0.7.63 - - [25/Dec/2025 08:57:45] "POST /alert HTTP/1.1" 200 -
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 09:00:52,947 - __main__ - INFO - Scale-down candidate: web-stress idle detected (will scale down after 180s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 09:03:52,959 - __main__ - INFO - Scale-down triggered: web-stress idle for 180s (threshold: 180s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 09:03:52,959 - __main__ - INFO - Current: 2 replicas, CPU=60.0%, MEM=70.0%
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 09:03:52,959 - __main__ - INFO - After scale-down: 1 replicas can handle load (CPU<75.0%, MEM<80.0%)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 09:03:52,961 - docker_controller - INFO - Scaling web-stress from 2 to 1 replicas
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 09:03:52,966 - docker_controller - INFO - Scale-down successful: web-stress scaled to 1 (0.01s)
+recovery-manager.1.bm6mwomyxnui@master    | 2025-12-25 09:03:52,966 - __main__ - INFO - ✅ Scale-down successful: web-stress 2 → 1

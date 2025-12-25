@@ -1,0 +1,356 @@
+[0;32m========================================[0m
+[0;32mSwarmGuard Scenario 2 - Ultimate Test[0m
+[0;32m========================================[0m
+
+[0;34mConfiguration:[0m
+  Alpine nodes:       5
+  Users per Alpine:   15
+  Total users:        75
+  Stagger delay:      2s (between user starts)
+  Ramp time:          60s (per user, 0→max)
+  Hold time:          900s (maintain peak load)
+
+[0;34mPer-User Resource Contribution:[0m
+  CPU:     2%
+  Memory:  8MB
+  Network: 12Mbps
+
+[0;34mExpected Peak Load (All Users Active):[0m
+  Total CPU:     150% \033[1;33m(Scenario 2 threshold: 75%)\033[0m
+  Total Memory:  600MB \033[1;33m(Scenario 2 threshold: 80% node memory)\033[0m
+  Total Network: 900Mbps \033[1;33m(Scenario 2 threshold: 65Mbps)\033[0m
+
+[0;34mTimeline:[0m
+  T+0s:      User 1 starts on each Alpine (4 users total)
+  T+2s:     User 2 starts on each Alpine (8 users total)
+  T+88s:  All 75 users active, ramping complete
+  T+??s:     Scenario 2 triggers → Scale 1 → 2+ replicas
+  T+988s:  Test completes, resources release
+  T+1168s: Scale-down cooldown → Back to 1 replica
+
+[1;33m[0/5] Pre-cleanup: Killing any leftover processes...[0m
+[0;32m✓ Pre-cleanup complete[0m
+
+[1;33m[1/5] Checking initial state...[0m
+  Current web-stress replicas: 1
+
+[1;33m[2/5] Checking service health...[0m
+[0;32m✓ Service healthy[0m
+
+[1;33m[3/5] Creating Alpine simulation script...[0m
+[0;32m✓ Script created[0m
+
+[1;33m[4/5] Deploying to Alpine nodes...[0m
+  Deploying to alpine-1...
+  Deploying to alpine-2...
+  Deploying to alpine-3...
+  Deploying to alpine-4...
+  Deploying to alpine-5...
+[0;32m✓ Deployed to 5 Alpine nodes[0m
+
+[0;32m========================================[0m
+[0;32m[5/5] Starting Scenario 2 Test[0m
+[0;32m========================================[0m
+
+[1;33m📊 OPEN GRAFANA NOW:[0m
+   [0;34mhttp://192.168.2.61:3000[0m
+   Dashboard: [0;34mSwarmGuard_All_Sum[0m
+
+[1;33mExpected Behavior:[0m
+  Phase 1: Gradual resource ramp-up (88s)
+    - CPU, Memory, Network all increase smoothly
+    - Each user adds load in staggered fashion
+
+  Phase 2: Scenario 2 triggers (around T+60-90s)
+    - Recovery manager detects: CPU > 75% AND Network > 65Mbps
+    - Scales web-stress: 1 → 2 replicas
+
+  Phase 3: Load distribution visible in Grafana
+    - Before: 1 replica at ~150% CPU, ~600MB RAM
+    - After:  2 replicas at ~75% CPU each, ~300MB RAM each
+    - LB Dashboard shows requests distributed across both replicas
+
+  Phase 4: Hold peak load (900s)
+    - Maintain distributed load to show stability
+
+  Phase 5: Cool down and scale-down
+    - After test completes, resources release
+    - Recovery manager waits 180s cooldown
+    - Scales back: 2 → 1 replica
+
+[1;33mPress Ctrl+C to stop early[0m
+
+[0;34m  Starting 15 users on alpine-1...[0m
+[0;34m  Starting 15 users on alpine-2...[0m
+[0;34m  Starting 15 users on alpine-3...[0m
+[0;34m  Starting 15 users on alpine-4...[0m
+[0;34m  Starting 15 users on alpine-5...[0m
+
+[0;32m✓ 75 users triggered across 5 Alpine nodes[0m
+
+[1;33mMonitoring for 988s...[0m
+
+[T+10s] Ramping... | Active users: ~30/75 | Replicas: 1
+[T+20s] Ramping... | Active users: ~55/75 | Replicas: 1
+[T+31s] Ramping... | Active users: ~75/75 | Replicas: 1
+[T+41s] Ramping... | Active users: ~75/75 | Replicas: 1
+[T+51s] Ramping... | Active users: ~75/75 | Replicas: 1
+[T+61s] Ramping... | Active users: ~75/75 | Replicas: 1
+[T+71s] Ramping... | Active users: ~75/75 | Replicas: 1
+[T+82s] Ramping... | Active users: ~75/75 | Replicas: 1
+[T+92s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+102s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+112s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+122s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+133s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+143s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+153s] Peak load | Replicas: 1 | Monitoring for scale events...
+
+[0;32m╔════════════════════════════════════════════════════════╗[0m
+[0;32m║  ✅ SCALE EVENT DETECTED!                              ║[0m
+[0;32m╚════════════════════════════════════════════════════════╝[0m
+  Time:      T+163s
+  Change:    1 → 2 replicas
+
+[1;33m  Expected load distribution:[0m
+    - Each replica now handles ~75% CPU
+    - Each replica now handles ~300MB Memory
+    - Each replica now handles ~450Mbps Network
+
+[1;33m  Check Grafana to verify distribution![0m
+
+
+[0;32m╔════════════════════════════════════════════════════════╗[0m
+[0;32m║  ✅ SCALE EVENT DETECTED!                              ║[0m
+[0;32m╚════════════════════════════════════════════════════════╝[0m
+  Time:      T+173s
+  Change:    2 → 1 replicas
+
+[1;33m  Expected load distribution:[0m
+    - Each replica now handles ~150% CPU
+    - Each replica now handles ~600MB Memory
+    - Each replica now handles ~900Mbps Network
+
+[1;33m  Check Grafana to verify distribution![0m
+
+[T+184s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+194s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+204s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+214s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+224s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+235s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+245s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+255s] Peak load | Replicas: 1 | Monitoring for scale events...
+
+[0;32m╔════════════════════════════════════════════════════════╗[0m
+[0;32m║  ✅ SCALE EVENT DETECTED!                              ║[0m
+[0;32m╚════════════════════════════════════════════════════════╝[0m
+  Time:      T+265s
+  Change:    1 → 3 replicas
+
+[1;33m  Expected load distribution:[0m
+    - Each replica now handles ~50% CPU
+    - Each replica now handles ~200MB Memory
+    - Each replica now handles ~300Mbps Network
+
+[1;33m  Check Grafana to verify distribution![0m
+
+
+[0;32m╔════════════════════════════════════════════════════════╗[0m
+[0;32m║  ✅ SCALE EVENT DETECTED!                              ║[0m
+[0;32m╚════════════════════════════════════════════════════════╝[0m
+  Time:      T+276s
+  Change:    3 → 2 replicas
+
+[1;33m  Expected load distribution:[0m
+    - Each replica now handles ~75% CPU
+    - Each replica now handles ~300MB Memory
+    - Each replica now handles ~450Mbps Network
+
+[1;33m  Check Grafana to verify distribution![0m
+
+[T+286s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+296s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+306s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+316s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+327s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+337s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+347s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+357s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+367s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+378s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+388s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+398s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+408s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+418s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+429s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+439s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+449s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+459s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+469s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+480s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+490s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+500s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+510s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+521s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+531s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+541s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+551s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+561s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+572s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+582s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+592s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+602s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+612s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+623s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+633s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+643s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+653s] Peak load | Replicas: 2 | Monitoring for scale events...
+[T+663s] Peak load | Replicas: 2 | Monitoring for scale events...
+
+[0;32m╔════════════════════════════════════════════════════════╗[0m
+[0;32m║  ✅ SCALE EVENT DETECTED!                              ║[0m
+[0;32m╚════════════════════════════════════════════════════════╝[0m
+  Time:      T+674s
+  Change:    2 → 1 replicas
+
+[1;33m  Expected load distribution:[0m
+    - Each replica now handles ~150% CPU
+    - Each replica now handles ~600MB Memory
+    - Each replica now handles ~900Mbps Network
+
+[1;33m  Check Grafana to verify distribution![0m
+
+[T+684s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+694s] Peak load | Replicas: 1 | Monitoring for scale events...
+
+[1;33m[Cleanup] Stopping all Alpine traffic...[0m
+[1;33m[Cleanup] Stopping stress on containers...[0m
+[0;32m✓ Cleanup complete[0m
+[T+723s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+733s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+743s] Peak load | Replicas: 1 | Monitoring for scale events...
+
+[0;32m╔════════════════════════════════════════════════════════╗[0m
+[0;32m║  ✅ SCALE EVENT DETECTED!                              ║[0m
+[0;32m╚════════════════════════════════════════════════════════╝[0m
+  Time:      T+753s
+  Change:    1 → 2 replicas
+
+[1;33m  Expected load distribution:[0m
+    - Each replica now handles ~75% CPU
+    - Each replica now handles ~300MB Memory
+    - Each replica now handles ~450Mbps Network
+
+[1;33m  Check Grafana to verify distribution![0m
+
+
+[0;32m╔════════════════════════════════════════════════════════╗[0m
+[0;32m║  ✅ SCALE EVENT DETECTED!                              ║[0m
+[0;32m╚════════════════════════════════════════════════════════╝[0m
+  Time:      T+764s
+  Change:    2 → 1 replicas
+
+[1;33m  Expected load distribution:[0m
+    - Each replica now handles ~150% CPU
+    - Each replica now handles ~600MB Memory
+    - Each replica now handles ~900Mbps Network
+
+[1;33m  Check Grafana to verify distribution![0m
+
+[T+774s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+784s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+794s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+804s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+815s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+825s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+835s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+845s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+856s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+866s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+876s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+886s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+896s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+907s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+917s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+927s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+937s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+947s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+958s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+968s] Peak load | Replicas: 1 | Monitoring for scale events...
+[T+978s] Peak load | Replicas: 1 | Monitoring for scale events...
+
+[1;33mWaiting for Alpine nodes to complete...[0m
+
+[0;32m========================================[0m
+[0;32mTest Complete![0m
+[0;32m========================================[0m
+
+[0;34mSummary:[0m
+  Initial replicas:  1
+  Final replicas:    1
+  Total users:       75
+  Expected peak:     150% CPU, 600MB RAM, 900Mbps NET
+  Scale-up time:     T+764s
+
+[0;34mCurrent replica distribution:[0m
+NAME           NODE       CURRENT STATE
+web-stress.1   worker-3   Running 3 minutes ago
+
+[0;34mLoad Balancer Metrics:[0m
+{
+  "total_requests": 19943,
+  "healthy_replicas": 1,
+  "algorithm": "lease",
+  "distribution": [
+    {
+      "node": "worker-3",
+      "requests": 0,
+      "leases": 0
+    }
+  ]
+}
+
+[0;34mAlpine Node Summary:[0m
+  [alpine-1]
+      [alpine-1] User 13: starting continuous traffic (T+24s)
+      [alpine-1] User 14: starting continuous traffic (T+26s)
+      [alpine-1] User 15: starting continuous traffic (T+28s)
+  [alpine-2]
+      [alpine-2] User 15: starting continuous traffic (T+28s)
+    Killed
+    Killed
+  [alpine-3]
+    sh: 1766668536: unknown operand
+    Killed
+    sh: 1766668536: unknown operand
+  [alpine-4]
+      [alpine-4] User 14: starting continuous traffic (T+26s)
+      [alpine-4] User 15: starting continuous traffic (T+28s)
+    Killed
+  [alpine-5]
+    wget: server returned error: HTTP/1.1 502 Bad Gateway
+    wget: server returned error: HTTP/1.1 502 Bad Gateway
+    Killed
+
+[0;32m✅ Scenario 2 Ultimate Test Complete![0m
+
+[1;33mNext Steps:[0m
+  1. Review Grafana dashboards:
+     - SwarmGuard_All_Sum: Overall CPU/Memory/Network distribution
+     - SwarmGuard Load Balancer Visualization: Request distribution
+
+  2. Wait ~3-4 minutes for scale-down cooldown
+     - Recovery manager will scale back to 1 replica when idle
+
+  3. Try different configurations:
+     ./scenario2_ultimate.sh 15 4 40 4 2 15 240   # Faster ramp
+     ./scenario2_ultimate.sh 8 7 70 7 4 25 300    # Higher load per user
+
+  4. Check recovery manager logs:
+     ssh master 'docker service logs recovery-manager --tail 50'
+
+
+[1;33m[Cleanup] Stopping all Alpine traffic...[0m
+[1;33m[Cleanup] Stopping stress on containers...[0m
+[0;32m✓ Cleanup complete[0m

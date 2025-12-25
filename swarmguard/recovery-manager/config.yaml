@@ -20,7 +20,7 @@ scenarios:
 
   scenario2_scaling:
     enabled: true
-    cpu_threshold: 65
+    cpu_threshold: 75
     memory_threshold: 80
     network_threshold_min: 65
     scale_up_cooldown: 60

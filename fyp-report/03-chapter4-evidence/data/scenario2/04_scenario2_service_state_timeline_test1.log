@@ -1,0 +1,477 @@
+=== 2025-12-25T16:52:49+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 51 seconds ago
+
+=== 2025-12-25T16:52:59+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:53:09+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:53:19+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:53:30+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:53:40+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:53:50+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:54:00+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T16:54:10+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T16:54:21+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T16:54:31+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T16:54:41+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T16:54:51+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T16:55:01+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T16:55:12+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T16:55:22+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T16:55:32+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T16:55:42+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T16:55:52+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T16:56:02+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T16:56:13+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T16:56:23+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T16:56:33+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T16:56:43+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T16:56:53+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T16:57:04+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T16:57:14+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T16:57:24+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T16:57:34+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T16:57:44+08:00 ===
+NAME           NODE       DESIRED STATE   CURRENT STATE
+web-stress.1   worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T16:57:55+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Ready           Ready 9 seconds ago
+ \_ web-stress.1   worker-3   Shutdown        Running 9 seconds ago
+web-stress.2       worker-3   Running         Running 3 seconds ago
+
+=== 2025-12-25T16:58:05+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Starting 5 seconds ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 5 seconds ago
+web-stress.2       worker-3   Running         Running 13 seconds ago
+
+=== 2025-12-25T16:58:15+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 9 seconds ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 15 seconds ago
+web-stress.2       worker-3   Running         Running 24 seconds ago
+
+=== 2025-12-25T16:58:25+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 20 seconds ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 25 seconds ago
+web-stress.2       worker-3   Running         Running 34 seconds ago
+
+=== 2025-12-25T16:58:35+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 30 seconds ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 35 seconds ago
+web-stress.2       worker-3   Running         Running 44 seconds ago
+
+=== 2025-12-25T16:58:46+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 40 seconds ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 46 seconds ago
+web-stress.2       worker-3   Running         Running 54 seconds ago
+
+=== 2025-12-25T16:58:56+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 50 seconds ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 56 seconds ago
+web-stress.2       worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:59:06+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running about a minute ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown about a minute ago
+web-stress.2       worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:59:16+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running about a minute ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown about a minute ago
+web-stress.2       worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:59:27+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running about a minute ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown about a minute ago
+web-stress.2       worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:59:37+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running about a minute ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown about a minute ago
+web-stress.2       worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:59:47+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running about a minute ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown about a minute ago
+web-stress.2       worker-3   Running         Running about a minute ago
+
+=== 2025-12-25T16:59:57+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running about a minute ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown about a minute ago
+web-stress.2       worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T17:00:08+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 2 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 2 minutes ago
+web-stress.2       worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T17:00:18+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 2 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 2 minutes ago
+web-stress.2       worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T17:00:28+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 2 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 2 minutes ago
+web-stress.2       worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T17:00:38+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 2 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 2 minutes ago
+web-stress.2       worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T17:00:48+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 2 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 2 minutes ago
+web-stress.2       worker-3   Running         Running 2 minutes ago
+
+=== 2025-12-25T17:00:59+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 2 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 2 minutes ago
+web-stress.2       worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T17:01:09+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 3 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 3 minutes ago
+web-stress.2       worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T17:01:19+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 3 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 3 minutes ago
+web-stress.2       worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T17:01:30+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 3 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 3 minutes ago
+web-stress.2       worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T17:01:40+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 3 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 3 minutes ago
+web-stress.2       worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T17:01:50+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 3 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 3 minutes ago
+web-stress.2       worker-3   Running         Running 3 minutes ago
+
+=== 2025-12-25T17:02:00+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 3 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 4 minutes ago
+web-stress.2       worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T17:02:11+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 4 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 4 minutes ago
+web-stress.2       worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T17:02:21+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 4 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 4 minutes ago
+web-stress.2       worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T17:02:31+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 4 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 4 minutes ago
+web-stress.2       worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T17:02:41+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 4 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 4 minutes ago
+web-stress.2       worker-3   Running         Running 4 minutes ago
+
+=== 2025-12-25T17:02:51+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 4 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 4 minutes ago
+web-stress.2       worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T17:03:02+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 4 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 5 minutes ago
+web-stress.2       worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T17:03:12+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 5 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 5 minutes ago
+web-stress.2       worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T17:03:22+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 5 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 5 minutes ago
+web-stress.2       worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T17:03:32+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 5 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 5 minutes ago
+web-stress.2       worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T17:03:42+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 5 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 5 minutes ago
+web-stress.2       worker-3   Running         Running 5 minutes ago
+
+=== 2025-12-25T17:03:53+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 5 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 5 minutes ago
+web-stress.2       worker-3   Remove          Running less than a second ago
+
+=== 2025-12-25T17:04:03+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 5 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 6 minutes ago
+web-stress.2       worker-3   Remove          Running 10 seconds ago
+
+=== 2025-12-25T17:04:13+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 6 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 6 minutes ago
+
+=== 2025-12-25T17:04:23+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 6 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 6 minutes ago
+
+=== 2025-12-25T17:04:33+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 6 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 6 minutes ago
+
+=== 2025-12-25T17:04:43+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 6 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 6 minutes ago
+
+=== 2025-12-25T17:04:54+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 6 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 6 minutes ago
+
+=== 2025-12-25T17:05:04+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 6 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 7 minutes ago
+
+=== 2025-12-25T17:05:14+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 7 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 7 minutes ago
+
+=== 2025-12-25T17:05:24+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 7 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 7 minutes ago
+
+=== 2025-12-25T17:05:34+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 7 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 7 minutes ago
+
+=== 2025-12-25T17:05:45+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 7 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 7 minutes ago
+
+=== 2025-12-25T17:05:55+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 7 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 7 minutes ago
+
+=== 2025-12-25T17:06:05+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 7 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 8 minutes ago
+
+=== 2025-12-25T17:06:15+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 8 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 8 minutes ago
+
+=== 2025-12-25T17:06:25+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 8 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 8 minutes ago
+
+=== 2025-12-25T17:06:36+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 8 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 8 minutes ago
+
+=== 2025-12-25T17:06:46+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 8 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 8 minutes ago
+
+=== 2025-12-25T17:06:56+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 8 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 8 minutes ago
+
+=== 2025-12-25T17:07:06+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 9 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 9 minutes ago
+
+=== 2025-12-25T17:07:16+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 9 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 9 minutes ago
+
+=== 2025-12-25T17:07:27+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 9 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 9 minutes ago
+
+=== 2025-12-25T17:07:37+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 9 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 9 minutes ago
+
+=== 2025-12-25T17:07:47+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 9 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 9 minutes ago
+
+=== 2025-12-25T17:07:57+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 9 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 9 minutes ago
+
+=== 2025-12-25T17:08:07+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 10 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 10 minutes ago
+
+=== 2025-12-25T17:08:18+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 10 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 10 minutes ago
+
+=== 2025-12-25T17:08:28+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 10 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 10 minutes ago
+
+=== 2025-12-25T17:08:38+08:00 ===
+NAME               NODE       DESIRED STATE   CURRENT STATE
+web-stress.1       worker-4   Running         Running 10 minutes ago
+ \_ web-stress.1   worker-3   Shutdown        Shutdown 10 minutes ago
+
