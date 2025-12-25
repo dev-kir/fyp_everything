@@ -189,7 +189,23 @@ for user_id in $(seq 1 $USERS); do
 
         echo "  [$NODE_NAME] User $user_id: starting continuous traffic (T+${USER_DELAY}s)"
 
-        # Keep sending requests until test duration ends
+        # HYBRID APPROACH: Combine /stress/combined (CPU/Memory) + continuous downloads (Network)
+        # This creates sustained network load while maintaining CPU/Memory control
+
+        # Start continuous download worker in background for sustained network load
+        (
+            while [ $(date +%s) -lt $TEST_END_TIME ]; do
+                # Download 50MB files continuously - creates sustained network traffic
+                # Each download at 100Mbps takes ~4 seconds, creating overlapping downloads
+                wget -q -O /dev/null --timeout=60 \
+                    "$SERVICE_URL/download/data?size_mb=50&cpu_work=0" \
+                    2>&1
+                # No sleep - start next download immediately after one finishes
+            done
+        ) &
+        DOWNLOAD_PID=$!
+
+        # Keep sending CPU/Memory stress requests until test duration ends
         while [ $(date +%s) -lt $TEST_END_TIME ]; do
             # Calculate time left
             TIME_LEFT=$((TEST_END_TIME - $(date +%s)))
@@ -206,25 +222,25 @@ for user_id in $(seq 1 $USERS); do
                 CURRENT_RAMP=0  # No ramp for subsequent requests
             fi
 
-            # Use 60-second request duration with 15-second intervals
-            # This creates HEAVY overlap (4 concurrent requests per user at steady state)
-            # Ensures sustained load with no gaps
+            # Use 60-second request duration for CPU/Memory stress
             REQUEST_DURATION=60
             if [ $TIME_LEFT -lt $REQUEST_DURATION ]; then
                 REQUEST_DURATION=$TIME_LEFT
             fi
 
-            # Send request in background to allow overlapping
+            # Send CPU/Memory stress request (network=0 since downloads handle that)
             wget -q -O /dev/null --timeout=$((CURRENT_RAMP + REQUEST_DURATION + 10)) \
-                "$SERVICE_URL/stress/combined?cpu=$CPU&memory=$MEMORY&network=$NETWORK&duration=$REQUEST_DURATION&ramp=$CURRENT_RAMP" \
+                "$SERVICE_URL/stress/combined?cpu=$CPU&memory=$MEMORY&network=0&duration=$REQUEST_DURATION&ramp=$CURRENT_RAMP" \
                 2>&1 &
 
             REQUEST_COUNT=$((REQUEST_COUNT + 1))
 
-            # Wait only 15 seconds before next request (with 60s duration = 4x overlap!)
-            # This ensures continuous sustained load
+            # Wait 15 seconds before next stress request
             sleep 15
         done
+
+        # Stop download worker
+        kill $DOWNLOAD_PID 2>/dev/null || true
 
         echo "  [$NODE_NAME] User $user_id: completed ${REQUEST_COUNT} requests"
     ) &
