@@ -55,22 +55,23 @@ LB_MONITOR_PID=$!
 
 sleep 10
 
-# Trigger Scenario 2 load test (Network + CPU/Memory via Alpine downloads)
-echo "Triggering Scenario 2 high-traffic load test..."
-echo "Parameters: Continuous 50MB downloads from 5 Alpine nodes (sustained >65 Mbps network)"
-echo "This will stress Network (>65Mbps) + CPU/Memory from handling requests"
+# Trigger Scenario 2 load test using scenario2_ultimate.sh
+echo "Triggering Scenario 2 high-traffic load test using scenario2_ultimate.sh..."
+echo "Parameters: 15 users/alpine, CPU=1%, Memory=10MB, Network=12Mbps per user"
+echo "Total expected: 75% CPU, 750MB Memory, 900 Mbps Network (balanced ramp-up)"
+echo "Network threshold: 65 Mbps | CPU threshold: 75%"
+echo "Strategy: Lower CPU/Memory to match network ramp speed - prevents Scenario 1 false trigger"
 echo "Test $TEST_NUM - LOAD_STARTED: $(date -Iseconds)" >> "$OUTPUT_DIR/04_scenario2_test${TEST_NUM}.log"
 
-# Start continuous download traffic from Alpine nodes
-echo "Starting continuous download traffic from Alpine nodes..."
-for alpine in alpine-1 alpine-2 alpine-3 alpine-4 alpine-5; do
-    echo "Starting downloads on $alpine..."
-    # Each Alpine runs 3 concurrent curl loops downloading 50MB files continuously
-    ssh "$alpine" "for i in 1 2 3; do while true; do curl -s 'http://192.168.2.50:8080/download/data?size_mb=50&cpu_work=0' > /dev/null 2>&1; done & done" &
-done
+# Start the scenario2_ultimate script in background
+cd /Users/amirmuz/fyp_everything/swarmguard
+nohup ./tests/scenario2_ultimate.sh 15 1 10 12 2 80 900 > "$OUTPUT_DIR/04_scenario2_ultimate_output_test${TEST_NUM}.log" 2>&1 &
+SCENARIO2_PID=$!
+cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
-echo "✓ Network load triggered from Alpine nodes (5 nodes × 3 workers = 15 concurrent downloads)"
-echo "Expected: Sustained >65 Mbps network + high CPU/Memory from serving requests"
+echo "✓ Scenario 2 ultimate script started (PID: $SCENARIO2_PID)"
+echo "Expected: Many small requests creating sustained >65 Mbps network load"
+echo "Expected: Load distribution visible when scaling 1→2→N replicas"
 
 echo "SwarmGuard should detect increased load and scale replicas..."
 echo "Waiting for load to ramp up (2 minutes)..."
@@ -82,11 +83,18 @@ sleep 600
 
 # Stop load
 echo "Stopping load test..."
-echo "Killing curl download processes on Alpine nodes..."
+echo "Killing scenario2_ultimate processes..."
+
+# Kill the scenario2 script if still running
+kill $SCENARIO2_PID 2>/dev/null || true
+
+# Cleanup Alpine nodes (scenario2_ultimate.sh cleanup)
+curl -s "http://192.168.2.50:8080/stress/stop" > /dev/null || true
 for alpine in alpine-1 alpine-2 alpine-3 alpine-4 alpine-5; do
-    ssh "$alpine" "pkill -9 -f 'curl.*download/data'" 2>/dev/null || true
-    echo "✓ Stopped downloads on $alpine"
+    ssh "$alpine" "pkill -9 -f wget" 2>/dev/null || true
+    ssh "$alpine" "pkill -9 -f scenario2_alpine_user.sh" 2>/dev/null || true
 done
+echo "✓ Stopped all Alpine load generation"
 
 echo "Test $TEST_NUM - LOAD_STOPPED: $(date -Iseconds)" >> "$OUTPUT_DIR/04_scenario2_test${TEST_NUM}.log"
 
