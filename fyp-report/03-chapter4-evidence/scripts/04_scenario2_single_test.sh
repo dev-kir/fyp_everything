@@ -55,16 +55,22 @@ LB_MONITOR_PID=$!
 
 sleep 10
 
-# Trigger Scenario 2 load test
-echo "Triggering Scenario 2 load test..."
-echo "Parameters: Users=10, CPU=2%, Mem=1MB, Net=35Mbps, Stagger=2s, Ramp=5s, Hold=6000s"
+# Trigger Scenario 2 load test (Network + CPU/Memory via Alpine downloads)
+echo "Triggering Scenario 2 high-traffic load test..."
+echo "Parameters: Continuous 50MB downloads from 5 Alpine nodes (sustained >65 Mbps network)"
+echo "This will stress Network (>65Mbps) + CPU/Memory from handling requests"
 echo "Test $TEST_NUM - LOAD_STARTED: $(date -Iseconds)" >> "$OUTPUT_DIR/04_scenario2_test${TEST_NUM}.log"
 
-cd /Users/amirmuz/fyp_everything/swarmguard
-./tests/scenario2_ultimate.sh 10 2 1 35 2 5 6000 > "$OUTPUT_DIR/04_scenario2_load_output_test${TEST_NUM}.txt" 2>&1 &
-LOAD_PID=$!
+# Start continuous download traffic from Alpine nodes
+echo "Starting continuous download traffic from Alpine nodes..."
+for alpine in alpine-1 alpine-2 alpine-3 alpine-4 alpine-5; do
+    echo "Starting downloads on $alpine..."
+    # Each Alpine runs 3 concurrent curl loops downloading 50MB files continuously
+    ssh "$alpine" "for i in 1 2 3; do while true; do curl -s 'http://192.168.2.50:8080/download/data?size_mb=50&cpu_work=0' > /dev/null 2>&1; done & done" &
+done
 
-cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
+echo "✓ Network load triggered from Alpine nodes (5 nodes × 3 workers = 15 concurrent downloads)"
+echo "Expected: Sustained >65 Mbps network + high CPU/Memory from serving requests"
 
 echo "SwarmGuard should detect increased load and scale replicas..."
 echo "Waiting for load to ramp up (2 minutes)..."
@@ -76,11 +82,10 @@ sleep 600
 
 # Stop load
 echo "Stopping load test..."
-kill $LOAD_PID 2>/dev/null || true
-curl -s "http://192.168.2.50:8080/stress/stop" > /dev/null
+echo "Killing curl download processes on Alpine nodes..."
 for alpine in alpine-1 alpine-2 alpine-3 alpine-4 alpine-5; do
-    ssh "$alpine" "pkill -9 -f wget" 2>/dev/null || true
-    ssh "$alpine" "pkill -9 -f scenario2_alpine_user.sh" 2>/dev/null || true
+    ssh "$alpine" "pkill -9 -f 'curl.*download/data'" 2>/dev/null || true
+    echo "✓ Stopped downloads on $alpine"
 done
 
 echo "Test $TEST_NUM - LOAD_STOPPED: $(date -Iseconds)" >> "$OUTPUT_DIR/04_scenario2_test${TEST_NUM}.log"
