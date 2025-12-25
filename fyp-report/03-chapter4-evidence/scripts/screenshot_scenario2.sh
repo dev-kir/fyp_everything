@@ -30,7 +30,7 @@ read -p "Press ENTER when Grafana is ready..."
 echo ""
 echo "Step 1: Ensuring SwarmGuard is enabled..."
 cd /Users/amirmuz/fyp_everything/swarmguard
-ssh master "docker service ls | grep recovery-manager" || ./deploy_recovery_manager.sh
+ssh master "docker service ls | grep recovery-manager" || ./deployment/deploy_recovery_manager.sh
 sleep 10
 
 # Clean any existing load
