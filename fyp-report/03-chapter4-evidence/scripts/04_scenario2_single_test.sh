@@ -61,6 +61,19 @@ done
 ) > "$OUTPUT_DIR/04_scenario2_lb_metrics_test${TEST_NUM}.log" &
 LB_MONITOR_PID=$!
 
+# Start service state monitoring in background (captures docker service ps every 10s)
+echo "Starting service state monitoring..."
+(
+while true; do
+  ts=$(date -Iseconds)
+  echo "=== $ts ==="
+  ssh master "docker service ps web-stress --format 'table {{.Name}}\t{{.Node}}\t{{.DesiredState}}\t{{.CurrentState}}'"
+  echo ""
+  sleep 10
+done
+) > "$OUTPUT_DIR/04_scenario2_service_state_timeline_test${TEST_NUM}.log" &
+SERVICE_STATE_PID=$!
+
 sleep 10
 
 # Trigger Scenario 2 load test using scenario2_ultimate.sh (HYBRID APPROACH)
@@ -114,6 +127,7 @@ sleep 180
 # Stop monitoring
 kill $REPLICA_MONITOR_PID 2>/dev/null || true
 kill $LB_MONITOR_PID 2>/dev/null || true
+kill $SERVICE_STATE_PID 2>/dev/null || true
 
 echo "Test $TEST_NUM - MONITORING_STOPPED: $(date -Iseconds)" >> "$OUTPUT_DIR/04_scenario2_test${TEST_NUM}.log"
 
@@ -131,5 +145,6 @@ echo "Results in:"
 echo "  - $OUTPUT_DIR/04_scenario2_test${TEST_NUM}.log"
 echo "  - $OUTPUT_DIR/04_scenario2_replicas_test${TEST_NUM}.log (replica count timeline)"
 echo "  - $OUTPUT_DIR/04_scenario2_lb_metrics_test${TEST_NUM}.log (load balancer metrics)"
+echo "  - $OUTPUT_DIR/04_scenario2_service_state_timeline_test${TEST_NUM}.log (service state snapshots during test)"
 echo "  - $OUTPUT_DIR/04_scenario2_recovery_logs_test${TEST_NUM}.txt"
 echo "  - $OUTPUT_DIR/04_scenario2_service_history_test${TEST_NUM}.txt"
