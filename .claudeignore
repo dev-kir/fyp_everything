@@ -1,0 +1,45 @@
+# Claude Code Ignore File
+# Similar to .gitignore - files Claude Code should skip for context
+
+# Node modules and dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Large binary files
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.zip
+*.tar.gz
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Keep these important for context:
+# !fyp-report/**/*.md (all markdown files in fyp-report)
+# !swarmguard/**/*.py (Python implementation)
+# !swarmguard/**/*.js (Node.js test app)
+# !.claude/SWARMGUARD_PROJECT_CONTEXT.md (auto-loaded context)

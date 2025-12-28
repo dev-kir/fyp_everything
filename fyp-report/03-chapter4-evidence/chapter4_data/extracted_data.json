@@ -1,0 +1,305 @@
+{
+  "baseline": {
+    "count": 10,
+    "mean": 23.1,
+    "min": 21.0,
+    "max": 25.0,
+    "median": 24.0,
+    "tests": [
+      {
+        "test_number": 1,
+        "mttr_seconds": 24.0,
+        "file": "02_baseline_mttr_test1.log"
+      },
+      {
+        "test_number": 2,
+        "mttr_seconds": 25.0,
+        "file": "02_baseline_mttr_test2.log"
+      },
+      {
+        "test_number": 3,
+        "mttr_seconds": 24.0,
+        "file": "02_baseline_mttr_test3.log"
+      },
+      {
+        "test_number": 4,
+        "mttr_seconds": 21.0,
+        "file": "02_baseline_mttr_test4.log"
+      },
+      {
+        "test_number": 5,
+        "mttr_seconds": 25.0,
+        "file": "02_baseline_mttr_test5.log"
+      },
+      {
+        "test_number": 6,
+        "mttr_seconds": 21.0,
+        "file": "02_baseline_mttr_test6.log"
+      },
+      {
+        "test_number": 7,
+        "mttr_seconds": 22.0,
+        "file": "02_baseline_mttr_test7.log"
+      },
+      {
+        "test_number": 8,
+        "mttr_seconds": 21.0,
+        "file": "02_baseline_mttr_test8.log"
+      },
+      {
+        "test_number": 9,
+        "mttr_seconds": 24.0,
+        "file": "02_baseline_mttr_test9.log"
+      },
+      {
+        "test_number": 10,
+        "mttr_seconds": 24.0,
+        "file": "02_baseline_mttr_test10.log"
+      }
+    ]
+  },
+  "scenario1_migration": {
+    "count": 10,
+    "mean": 0.6,
+    "min": 0.0,
+    "max": 5.0,
+    "median": 0.0,
+    "zero_downtime_count": 8,
+    "zero_downtime_rate": 80.0,
+    "tests": [
+      {
+        "test_number": 1,
+        "mttr_seconds": 0.0,
+        "zero_downtime": true,
+        "file": "03_scenario1_mttr_test1.log"
+      },
+      {
+        "test_number": 2,
+        "mttr_seconds": 0.0,
+        "zero_downtime": true,
+        "file": "03_scenario1_mttr_test2.log"
+      },
+      {
+        "test_number": 3,
+        "mttr_seconds": 0.0,
+        "zero_downtime": true,
+        "file": "03_scenario1_mttr_test3.log"
+      },
+      {
+        "test_number": 4,
+        "mttr_seconds": 0.0,
+        "zero_downtime": true,
+        "file": "03_scenario1_mttr_test4.log"
+      },
+      {
+        "test_number": 5,
+        "mttr_seconds": 0.0,
+        "zero_downtime": true,
+        "file": "03_scenario1_mttr_test5.log"
+      },
+      {
+        "test_number": 6,
+        "mttr_seconds": 0.0,
+        "zero_downtime": true,
+        "file": "03_scenario1_mttr_test6.log"
+      },
+      {
+        "test_number": 7,
+        "mttr_seconds": 1.0,
+        "zero_downtime": false,
+        "file": "03_scenario1_mttr_test7.log"
+      },
+      {
+        "test_number": 8,
+        "mttr_seconds": 0.0,
+        "zero_downtime": true,
+        "file": "03_scenario1_mttr_test8.log"
+      },
+      {
+        "test_number": 9,
+        "mttr_seconds": 5.0,
+        "zero_downtime": false,
+        "file": "03_scenario1_mttr_test9.log"
+      },
+      {
+        "test_number": 10,
+        "mttr_seconds": 0.0,
+        "zero_downtime": true,
+        "file": "03_scenario1_mttr_test10.log"
+      }
+    ]
+  },
+  "scenario2_scaling": {
+    "count": 10,
+    "avg_max_replicas": 2.2,
+    "min_replicas": 2,
+    "max_replicas": 3,
+    "tests": [
+      {
+        "test_number": 1,
+        "max_replicas": 2,
+        "scaling_events": 2,
+        "file": "04_scenario2_replicas_test1.log"
+      },
+      {
+        "test_number": 2,
+        "max_replicas": 3,
+        "scaling_events": 3,
+        "file": "04_scenario2_replicas_test2.log"
+      },
+      {
+        "test_number": 3,
+        "max_replicas": 2,
+        "scaling_events": 2,
+        "file": "04_scenario2_replicas_test3.log"
+      },
+      {
+        "test_number": 4,
+        "max_replicas": 2,
+        "scaling_events": 2,
+        "file": "04_scenario2_replicas_test4.log"
+      },
+      {
+        "test_number": 5,
+        "max_replicas": 2,
+        "scaling_events": 2,
+        "file": "04_scenario2_replicas_test5.log"
+      },
+      {
+        "test_number": 6,
+        "max_replicas": 2,
+        "scaling_events": 1,
+        "file": "04_scenario2_replicas_test6.log"
+      },
+      {
+        "test_number": 7,
+        "max_replicas": 2,
+        "scaling_events": 2,
+        "file": "04_scenario2_replicas_test7.log"
+      },
+      {
+        "test_number": 8,
+        "max_replicas": 2,
+        "scaling_events": 2,
+        "file": "04_scenario2_replicas_test8.log"
+      },
+      {
+        "test_number": 9,
+        "max_replicas": 3,
+        "scaling_events": 4,
+        "file": "04_scenario2_replicas_test9.log"
+      },
+      {
+        "test_number": 10,
+        "max_replicas": 2,
+        "scaling_events": 2,
+        "file": "04_scenario2_replicas_test10.log"
+      }
+    ]
+  },
+  "overhead": {
+    "baseline": {
+      "master": {
+        "cpu_percent": 2.24,
+        "memory_mb": 2109.6,
+        "memory_percent": 13.25,
+        "sample_count": 60
+      },
+      "worker-1": {
+        "cpu_percent": 1.3,
+        "memory_mb": 567.98,
+        "memory_percent": 7.26,
+        "sample_count": 60
+      },
+      "worker-2": {
+        "cpu_percent": 0.67,
+        "memory_mb": 840.88,
+        "memory_percent": 10.65,
+        "sample_count": 60
+      },
+      "worker-3": {
+        "cpu_percent": 1.22,
+        "memory_mb": 607.33,
+        "memory_percent": 3.81,
+        "sample_count": 60
+      },
+      "worker-4": {
+        "cpu_percent": 1.27,
+        "memory_mb": 671.95,
+        "memory_percent": 4.22,
+        "sample_count": 60
+      }
+    },
+    "monitoring_only": {
+      "master": {
+        "cpu_percent": 3.08,
+        "memory_mb": 2144.35,
+        "memory_percent": 13.46,
+        "sample_count": 60
+      },
+      "worker-1": {
+        "cpu_percent": 1.32,
+        "memory_mb": 603.6,
+        "memory_percent": 7.71,
+        "sample_count": 60
+      },
+      "worker-2": {
+        "cpu_percent": 0.68,
+        "memory_mb": 874.27,
+        "memory_percent": 11.09,
+        "sample_count": 60
+      },
+      "worker-3": {
+        "cpu_percent": 1.15,
+        "memory_mb": 648.62,
+        "memory_percent": 4.06,
+        "sample_count": 60
+      },
+      "worker-4": {
+        "cpu_percent": 1.06,
+        "memory_mb": 710.9,
+        "memory_percent": 4.47,
+        "sample_count": 60
+      }
+    },
+    "full_swarmguard": {
+      "master": {
+        "cpu_percent": 2.37,
+        "memory_mb": 2180.98,
+        "memory_percent": 13.68,
+        "sample_count": 60
+      },
+      "worker-1": {
+        "cpu_percent": 0.97,
+        "memory_mb": 603.67,
+        "memory_percent": 7.71,
+        "sample_count": 60
+      },
+      "worker-2": {
+        "cpu_percent": 0.71,
+        "memory_mb": 875.23,
+        "memory_percent": 11.11,
+        "sample_count": 60
+      },
+      "worker-3": {
+        "cpu_percent": 1.21,
+        "memory_mb": 646.25,
+        "memory_percent": 4.04,
+        "sample_count": 60
+      },
+      "worker-4": {
+        "cpu_percent": 0.97,
+        "memory_mb": 712.97,
+        "memory_percent": 4.48,
+        "sample_count": 60
+      }
+    }
+  },
+  "improvements": {
+    "baseline_mttr": 23.1,
+    "swarmguard_mttr": 0.6,
+    "reduction_seconds": 22.5,
+    "reduction_percent": 97.4
+  },
+  "extraction_timestamp": "2025-12-27T08:54:14.411775"
+}
