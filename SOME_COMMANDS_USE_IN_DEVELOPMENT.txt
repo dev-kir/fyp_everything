@@ -1,0 +1,1124 @@
+# 1. Re-run Baseline (10 tests)
+./02_baseline_disable_swarmguard.sh
+for i in {1..10}; do
+  ./02_baseline_single_test.sh $i
+  sleep 1200
+done
+
+# 2. Re-run Scenario 1 (10 tests)
+./03_enable_swarmguard.sh
+for i in {1..10}; do
+  ./03_scenario1_single_test.sh $i
+  sleep 1200
+done
+
+# 1. Stop all stress on the web-stress containers
+curl "http://192.168.2.50:8080/stress/stop"
+# 2. Kill ALL wget processes on all Alpine nodes
+for alpine in alpine-1 alpine-2 alpine-3 alpine-4; do
+    echo "Cleaning $alpine..."
+    ssh "$alpine" "pkill -9 -f wget" || true
+    ssh "$alpine" "pkill -9 -f scenario2_alpine_user.sh" || true
+done
+# 3. Verify no more traffic
+echo "Waiting 10 seconds for traffic to stop..."
+sleep 10
+# 4. Check Grafana - network should be flat now
+echo "Check Grafana - network should be at 0 Mbps now"
+# Clean first
+curl "http://192.168.2.50:8080/stress/stop"
+sleep 60
+# Run with balanced load
+./tests/scenario2_ultimate.sh 10 1 10  1 60 600
+#                             │  │  │  │ │  │  │
+#                             │  │  │  │ │  │  └─ Hold: 10 min
+#                             │  │  │  │ │  └─ Ramp: 90s (smoother!)
+#                             │  │  │  │ └─ Stagger: 2s
+#                             │  │  │  └─ Network: 3 Mbps ✅
+#                             │  │  └─ Memory: 40MB
+#                             │  └─ CPU: 4%
+#                             └─ Users: 10 per Alpine
+
+multiplyer: 40
+user: 15 2 1 25 2 5 6000        gud for other nodes, but not 
+
+10 2 1 35 2 5 6000
+./../fyp_everything/fyp-report/03-chapter4-evidence/scripts/00_environment_info.sh
+./../fyp_everything/fyp-report/03-chapter4-evidence/scripts/00_environment_info.sh
+./../fyp_everything/fyp-report/03-chapter4-evidence/scripts/00_environment_info.sh
+./../fyp_everything/fyp-report/03-chapter4-evidence/scripts/00_environment_info.sh
+
+curl "http://192.168.2.50:8080/stress/stop"
+sleep 20
+./tests/scenario2_ultimate.sh 3 50 200 1 3 60 600
+
+git pull
+cd monitoring-agent && sudo docker build -t docker-registry.amirmuz.com/swarmguard-agent:latest . && sudo docker push docker-registry.amirmuz.com/swarmguard-agent:latest
+cd ../recovery-manager && sudo docker build -t docker-registry.amirmuz.com/swarmguard-manager:latest . && sudo docker push docker-registry.amirmuz.com/swarmguard-manager:latest
+cd ../web-stress && sudo docker build -t docker-registry.amirmuz.com/swarmguard-web-stress:latest . && sudo docker push docker-registry.amirmuz.com/swarmguard-web-stress:latest
+cd ..
+
+curl "http://192.168.2.50:8080/stress/stop"
+sleep 30
+./tests/alpine_test_scenario2_v5_hybrid.sh 4 1 3 90 300 15
+
+THE BEST FOR SCENARIO 2
+./tests/scenario2_ultimate.sh 15 1 1 8 2 60 900 # not stable of network after a moment
+
+==========================================================================================
+
+git add .
+git commit -m "all by claude"
+git push origin add-lease-lb
+
+git add .
+git commit -m "all by claude"
+git push origin grafana-read-network
+
+git add .
+git commit -m "all by claude"
+git push origin fix-testing-method
+
+git add .
+git commit -m "all by claude"
+git push origin fix-testing-method-v2
+
+
+# For ~40 Mbps (current, what you're getting now)
+./tests/deploy_web_stress.sh 1 10
+# For ~80 Mbps (recommended to trigger Scenario 2)
+./tests/deploy_web_stress.sh 1 20
+# For ~120 Mbps (maximum)
+./tests/deploy_web_stress.sh 1 30
+
+
+# === ON UBUNTU BUILD SERVER ===
+# Build and push all images to registry
+git pull
+#git checkout -f add-lease-lb
+# git checkout -f grafana-read-network
+git checkout -f fix-testing-method-v2
+git pull
+
+cd monitoring-agent && sudo docker build -t docker-registry.amirmuz.com/swarmguard-agent:latest . && sudo docker push docker-registry.amirmuz.com/swarmguard-agent:latest
+cd ../recovery-manager && sudo docker build -t docker-registry.amirmuz.com/swarmguard-manager:latest . && sudo docker push docker-registry.amirmuz.com/swarmguard-manager:latest
+cd ../load-balancer && sudo docker build --no-cache -t docker-registry.amirmuz.com/swarmguard-load-balancer:latest . && sudo docker push docker-registry.amirmuz.com/swarmguard-load-balancer:latest
+cd ../monitoring && sudo docker build -t docker-registry.amirmuz.com/lb-metrics-collector:latest . && sudo docker push docker-registry.amirmuz.com/lb-metrics-collector:latest
+cd ../web-stress && sudo docker build -t docker-registry.amirmuz.com/swarmguard-web-stress:latest . && sudo docker push docker-registry.amirmuz.com/swarmguard-web-stress:latest
+cd ..
+
+# === ON CONTROL MACOS ===
+# Remove all services
+ssh master "docker service rm \
+  monitoring-agent-master \
+  monitoring-agent-worker1 \
+  monitoring-agent-worker2 \
+  monitoring-agent-worker3 \
+  monitoring-agent-worker4 \
+  recovery-manager \
+  intelligent-lb \
+  lb-metrics-collector \
+  web-stress"
+ssh master "docker service ls"
+sleep 10
+
+# Deploy in order
+git fetch origin
+git reset --hard fix-testing-method-v2
+git checkout -f fix-testing-method-v2
+git pull
+./deployment/create_network.sh
+./deployment/deploy_recovery_manager.sh
+sleep 30
+./deployment/deploy_monitoring_agents.sh
+sleep 30
+./tests/deploy_load_balancer.sh lease
+sleep 15
+./monitoring/deploy_lb_metrics_collector.sh  # NEW: Pushes LB metrics to InfluxDB
+sleep 10
+./tests/deploy_web_stress.sh 1 30
+ssh master "docker service ls"
+
+# Verify all services healthy
+echo "=== Checking service health ==="
+curl -s http://192.168.2.50:8081/health | jq .           # Load balancer
+curl -s http://192.168.2.50:8081/metrics | jq .replica_stats  # LB metrics
+curl -s http://192.168.2.50:8080/health | jq .           # Web-stress
+curl -s http://worker-1:8082/health | jq .               # Monitoring-agent API
+
+# Monitor logs
+ssh master "docker service logs -f intelligent-lb | grep -E 'LEASE-ROUTING|Discovered'"
+ssh master "docker service logs -f lb-metrics-collector"  # Should see "Pushed metrics: X requests, Y replicas"
+
+==========================================================================================
+
+ssh master "docker service rm \
+  monitoring-agent-master \
+  monitoring-agent-worker1 \
+  monitoring-agent-worker2 \
+  monitoring-agent-worker3 \
+  monitoring-agent-worker4 \
+  recovery-manager \
+  web-stress"
+ssh master "docker service ls"
+sleep 10
+
+# Deploy in order
+git fetch origin
+git reset --hard origin/main
+git pull
+./deployment/create_network.sh
+./deployment/deploy_recovery_manager.sh
+sleep 30
+./deployment/deploy_monitoring_agents.sh
+sleep 30
+./tests/deploy_web_stress.sh
+ssh master "docker service ls"
+w
+
+# TESTING SCENARIO 1
+curl "http://192.168.2.53:8080/stress/cpu?target=80&duration=180&ramp=20"
+
+# TESTING SCENARIO 2
+curl "http://192.168.2.50:8080/stress/stop"
+sleep 10
+./tests/alpine_test_scenario2_v2.sh 2 1 25 120 300 12
+
+
+git fetch origin
+git reset --hard origin/main
+
+
+proceed
+
+✅ Concise - 3 short paragraphs (~400 words total, not a full page)
+✅ Informative - Covers what, why, and how without excessive detail
+✅ Avoids repetition 
+✅ Sets expectations
+✅ Professional tone - Bachelor FYP level, not overly academic or casual
+✅ Establishes credibility
+✅ If for visualization, can generate them in LaTex format, i'll convert them
+✅ If need visualization for data, tell me test i need to run, and do maybe the table format or graph what to what, i'll find the data value
+
+
+watch -n 1 --color 'docker service ps web-stress --format "table {{.Name}}\t{{.Node}}\t{{.DesiredState}}\t{{.Curren
+tState}}\t{{.Error}}" | head -n 10'
+
+git add .
+git commit -m "all by claude"
+git push origin main
+
+ssh master "docker service rm \
+  web-stress"
+sleep 5
+./tests/deploy_web_stress.sh
+
+curl "http://192.168.2.50:8080/health"
+curl "http://192.168.2.50:8080/metrics"
+curl "http://192.168.2.50:8080/stress/cpu?target=80&duration=120&ramp=60"
+curl "http://192.168.2.50:8080/stress/memory?target=1024&duration=120&ramp=60"
+curl "http://192.168.2.50:8080/stress/network?bandwidth=50&duration=120&ramp=60"
+curl "http://192.168.2.50:8080/stress/combined?cpu=80&memory=1024&network=50&duration=120&ramp=60"
+curl "http://192.168.2.50:8080/stress/stop"
+
+git pull 
+cd /home/amirmuz/fyp_everything/swarmguard/monitoring-agent
+sudo docker build -t docker-registry.amirmuz.com/swarmguard-agent:latest .
+sudo docker push docker-registry.amirmuz.com/swarmguard-agent:latest
+
+ssh master "docker service rm web-stress"
+sleep 5
+cd /Users/amirmuz/fyp_everything/swarmguard
+./tests/deploy_web_stress.sh
+
+
+sleep 20
+curl -s "http://192.168.2.61:8086/api/v2/query?org=swarmguard" \
+  -H "Authorization: Token iNCff-dYnCY8oiO_mDIn3tMIEdl5D1Z4_KFE2vwTMFtQoTqGh2SbL5msNB30DIOKE2wwj-maBW5lTZVJ3f9ONA==" \
+  -H "Content-Type: application/vnd.flux" \
+  -d 'from(bucket: "metrics") |> range(start: -2m) |> filter(fn: (r) => r._measurement == "nodes" and (r._field == "net_in" or r._field == "net_out")) |> limit(n: 10)'
+
+
+for explanation, just do it briefly, no need fancy explain, and provide commands if u want any details, i can paster the results here
+
+for i in {1..3}; do
+  sudo docker push docker-registry.amirmuz.com/swarmguard-agent:latest && break || sleep 5
+done
+
+# Push manager
+for i in {1..3}; do
+  sudo docker push docker-registry.amirmuz.com/swarmguard-manager:latest && break || sleep 5
+done
+
+# Push web-stress
+for i in {1..3}; do
+  sudo docker push docker-registry.amirmuz.com/swarmguard-web-stress:latest && break || sleep 5
+done
+
+for i in {1..3}; do
+  sudo docker push docker-registry.amirmuz.com/swarmguard-agent:latest && break || sleep 5
+done
+
+# Push manager
+for i in {1..3}; do
+  sudo docker push docker-registry.amirmuz.com/swarmguard-manager:latest && break || sleep 5
+done
+
+# Push web-stress
+for i in {1..3}; do
+  sudo docker push docker-registry.amirmuz.com/swarmguard-web-stress:latest && break || sleep 5
+done
+
+for i in {1..3}; do
+  sudo docker push docker-registry.amirmuz.com/swarmguard-agent:latest && break || sleep 5
+done
+
+# Push manager
+for i in {1..3}; do
+  sudo docker push docker-registry.amirmuz.com/swarmguard-manager:latest && break || sleep 5
+done
+
+# Push web-stress
+for i in {1..3}; do
+  sudo docker push docker-registry.amirmuz.com/swarmguard-web-stress:latest && break || sleep 5
+done
+
+
+
+
+git pull
+sudo docker build -t docker-registry.amirmuz.com/organic-web-stress:35 .
+sudo docker push docker-registry.amirmuz.com/organic-web-stress:35
+
+
+sudo docker node update --label-add zone=stress worker-1
+sudo docker node update --label-add zone=stress worker-2
+sudo docker node update --label-add zone=stress worker-4
+
+sudo docker node ls -q | xargs sudo docker node inspect -f '{{.Description.Hostname}}: {{.Spec.Labels}}'
+
+sudo docker service rm organic-web-stress
+sudo docker service create \
+  --name organic-web-stress \
+  --replicas 1 \
+  --constraint 'node.labels.zone == stress' \
+  --network pymonnet-net \
+  -p 7777:7777 \
+  docker-registry.amirmuz.com/organic-web-stress:7
+
+sudo docker service ps organic-web-stress
+
+sudo docker node update --label-rm zone worker-1
+sudo docker node update --label-rm zone worker-2
+sudo docker node update --label-rm zone worker-4
+sudo docker node update --label-add zone=stress worker-1
+sudo docker node update --label-add zone=stress worker-2
+sudo docker node update --label-add zone=stress worker-3
+sudo docker node update --label-add zone=stress worker-4
+sudo docker node ls -q | xargs sudo docker node inspect -f '{{.Description.Hostname}}: {{.Spec.Labels}}'
+
+
+./swarm_stress.sh start \
+  --target http://192.168.2.50:7777 \
+  --mode full \
+  --duration 120 \
+  --parallel 40 \
+  --pattern steady \
+  --sleep 0 \
+  --cpu-duration 90 \
+  --cpu-workers 4 \
+  --cpu-spin 350000 \
+  --memory-mb 3600 \
+  --memory-hold 130 \
+  --memory-workers 4 \
+  --network-mb 800 \
+  --network-chunk-kb 256
+
+./swarm_stress.sh start \
+  --target http://192.168.2.50:7777 \
+  --mode full \
+  --duration 120 \
+  --parallel 40 \
+  --pattern steady \
+  --sleep 0 \
+  --cpu-duration 90 \
+  --cpu-workers 4 \
+  --cpu-spin 350000 \
+  --memory-mb 3600 \
+  --memory-hold 130 \
+  --memory-workers 4 \
+  --network-mb 800 \
+  --network-chunk-kb 256
+
+
+./swarm_stress.sh start \
+  --target http://192.168.2.50:7777 \
+  --mode full \
+  --duration 180 \
+  --parallel 35 \
+  --pattern steady \
+  --sleep 0 \
+  --cpu-duration 150 \
+  --cpu-workers 6 \
+  --cpu-spin 350000 \
+  --memory-mb 3600 \
+  --memory-hold 170 \
+  --memory-workers 4 \
+  --network-mb 1000 \
+  --network-chunk-kb 256
+
+
+# test to deploy the container with limited memory
+sudo docker service rm organic-web-stress
+sudo docker service create \
+  --name organic-web-stress \
+  --replicas 1 \
+  --constraint 'node.labels.zone == stress' \
+  --network pymonnet-net \
+  --limit-memory 3g \
+  -p 7777:7777 \
+  docker-registry.amirmuz.com/organic-web-stress:7
+
+sudo docker service rm organic-web-stress
+sudo docker service create \
+  --name organic-web-stress \
+  --replicas 1 \
+  --constraint 'node.labels.zone == stress' \
+  --network pymonnet-net \
+  --limit-memory 3g \
+  -p 7777:7777 \
+  docker-registry.amirmuz.com/organic-web-stress:7
+
+
+sudo docker service rm organic-web-stress
+sudo docker service create \
+  --name organic-web-stress \
+  --replicas 1 \
+  --constraint 'node.labels.zone == stress' \
+  --network pymonnet-net \
+  -p 7777:7777 \
+  docker-registry.amirmuz.com/organic-web-stress:35
+
+watch -n 1 --color 'sudo docker service ps organic-web-stress --format "table {{.Name}}\t{{.Node}}\t{{.DesiredState}}\t{{.CurrentState}}\t{{.Error}}" | head -n 10'
+
+
+
+while sleep 1; do                
+  ts=$(date -Iseconds)                
+  code=$(curl -sf -o /dev/null -w '%{http_code}' http://192.168.2.50:7777/health || echo DOWN)                  
+  echo "$ts $code"      
+done | tee ~/log_real_fr/health-check.log
+
+
+
+
+# ========================================================================
+
+python3 - <<'PY'
+from datetime import datetime
+from pathlib import Path
+
+down_start = None
+fmt = "%Y-%m-%dT%H:%M:%S%z"
+log = Path("/Users/amirmuz/log_real_fr/health-check.log")
+
+for line in log.read_text().splitlines():
+    ts_str, status = line.split()
+    ts = datetime.fromisoformat(ts_str)
+    if "DOWN" in status:
+        down_start = down_start or ts
+    elif down_start:
+        delta = (ts - down_start).total_seconds()
+        print(f"Outage from {down_start} to {ts} ({delta:.1f} seconds)")
+        down_start = None
+PY
+
+# ========================================================================
+
+python3 - <<'PY'
+from datetime import datetime
+from pathlib import Path
+
+down_start = None
+durations = []
+fmt = "%Y-%m-%dT%H:%M:%S%z"
+for line in Path("/Users/amirmuz/log_real_fr/health-check.log").read_text().splitlines():
+    ts_str, status = line.split()
+    ts = datetime.fromisoformat(ts_str)
+    if "DOWN" in status:
+        down_start = down_start or ts
+    elif down_start:
+        durations.append((ts - down_start).total_seconds())
+        down_start = None
+
+if durations:
+    print(f"Mean downtime: {sum(durations)/len(durations):.1f} seconds over {len(durations)} outages")
+else:
+    print("No outages recorded")
+PY
+
+# ========================================================================
+
+
+sudo docker build -t docker-registry.amirmuz.com/pymonnet-agent:14 .
+sudo docker push docker-registry.amirmuz.com/pymonnet-agent:14
+
+sudo docker build -t docker-registry.amirmuz.com/pymonnet-server:1 .
+sudo docker push docker-registry.amirmuz.com/pymonnet-server:1
+
+sudo docker service create \
+ --name pymonnet-agent \
+ --mode global \
+ --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock \
+ --mount type=bind,source=/proc,target=/host/proc,readonly \
+ --network host \
+ docker-registry.amirmuz.com/pymonnet-agent:1
+
+sudo docker service ps pymonnet-agent
+
+sudo docker service create \
+  --name pymonnet-server \
+  --replicas 1 \
+  --constraint 'node.hostname == master' \
+  --publish 6969:6969 \
+  --network host \
+  docker-registry.amirmuz.com/pymonnet-server:1
+
+
+  sudo docker service update \
+  --image docker-registry.amirmuz.com/pymonnet-agent:1 \
+  pymonnet-agent
+
+
+sudo docker service rm pymonnet-server
+sudo docker service rm pymonnet-agent-master
+sudo docker service rm pymonnet-agent-worker1
+sudo docker service rm pymonnet-agent-worker2
+sudo docker service rm pymonnet-agent-worker3
+sudo docker service rm pymonnet-agent-worker4
+
+sudo docker service create \
+  --name pymonnet-agent-master \
+  --constraint 'node.hostname == master' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=enp5s0f0 \
+  docker-registry.amirmuz.com/pymonnet-agent:13
+
+sudo docker service create \
+  --name pymonnet-agent-worker1 \
+  --constraint 'node.hostname == worker-1' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=eno1 \
+  docker-registry.amirmuz.com/pymonnet-agent:13
+
+sudo docker service create \
+  --name pymonnet-agent-worker2 \
+  --constraint 'node.hostname == worker-2' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=enp0s25 \
+  docker-registry.amirmuz.com/pymonnet-agent:13
+
+sudo docker service create \
+  --name pymonnet-agent-worker3 \
+  --constraint 'node.hostname == worker-3' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=enp2s0 \
+  docker-registry.amirmuz.com/pymonnet-agent:13
+
+sudo docker service create \
+  --name pymonnet-agent-worker4 \
+  --constraint 'node.hostname == worker-4' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=eno1 \
+  docker-registry.amirmuz.com/pymonnet-agent:13
+
+sudo docker service update --image docker-registry.amirmuz.com/pymonnet-agent:7 pymonnet-agent-master
+sudo docker service update --image docker-registry.amirmuz.com/pymonnet-agent:7 pymonnet-agent-worker1
+sudo docker service update --image docker-registry.amirmuz.com/pymonnet-agent:7 pymonnet-agent-worker2
+sudo docker service update --image docker-registry.amirmuz.com/pymonnet-agent:7 pymonnet-agent-worker3
+sudo docker service update --image docker-registry.amirmuz.com/pymonnet-agent:7 pymonnet-agent-worker4
+sudo docker service update --image docker-registry.amirmuz.com/pymonnet-server:16 pymonnet-server
+
+
+
+git pull
+sudo docker build -t docker-registry.amirmuz.com/pymonnet-server:18 .
+sudo docker push docker-registry.amirmuz.com/pymonnet-server:18
+
+sudo docker service create \
+  --name pymonnet-server \
+  --constraint 'node.role == manager' \
+  --replicas 3 \
+  --publish 6969:6969 \
+  --network pymonnet-net \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+docker-registry.amirmuz.com/pymonnet-server:18
+
+ks0cnTPipvphipQIuKT7w7gHAYMZx4GoxvN_3vSGAQd7o1UmcKD64WPYiIFwEteNnRuohJYqsj_4qO5Nr9yvMw==
+
+
+# enter or exec inside the influxdb container
+sudo docker exec -it influxdb influx delete \
+  --org pymonnet \
+  --bucket metrics \
+  --start '1970-01-01T00:00:00Z' \
+  --stop $(date -u +"%Y-%m-%dT%H:%M:%SZ") \
+  --token 'ks0cnTPipvphipQIuKT7w7gHAYMZx4GoxvN_3vSGAQd7o1UmcKD64WPYiIFwEteNnRuohJYqsj_4qO5Nr9yvMw=='
+
+
+from(bucket: "metrics")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "nodes")
+  |> filter(fn: (r) => r["_field"] == "cpu" or r["_field"] == "mem" or r["_field"] == "net_in" or r["_field"] == "net_out")
+  |> filter(fn: (r) => r["node"] == "master")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "mean")
+
+from(bucket: "metrics")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "nodes")
+  |> filter(fn: (r) => r["_field"] == "cpu" or r["_field"] == "mem" or r["_field"] == "net_in" or r["_field"] == "net_out")
+  |> filter(fn: (r) => r["node"] == "worker-1")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "mean")
+
+from(bucket: "metrics")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "nodes")
+  |> filter(fn: (r) => r["_field"] == "cpu" or r["_field"] == "mem" or r["_field"] == "net_in" or r["_field"] == "net_out")
+  |> filter(fn: (r) => r["node"] == "worker-2")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "mean")
+
+from(bucket: "metrics")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "nodes")
+  |> filter(fn: (r) => r["_field"] == "cpu" or r["_field"] == "mem" or r["_field"] == "net_in" or r["_field"] == "net_out")
+  |> filter(fn: (r) => r["node"] == "worker-3")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "mean")
+
+from(bucket: "metrics")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["_measurement"] == "nodes")
+  |> filter(fn: (r) => r["_field"] == "cpu" or r["_field"] == "mem" or r["_field"] == "net_in" or r["_field"] == "net_out")
+  |> filter(fn: (r) => r["node"] == "worker-4")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "mean")
+
+
+git pull
+sudo docker build -t docker-registry.amirmuz.com/web-stress:5 .
+sudo docker push docker-registry.amirmuz.com/web-stress:5
+
+sudo docker service create \
+  --name web-stress \
+  --replicas 2 \
+  --network pymonnet-net \
+  -p 7777:7777 \
+  docker-registry.amirmuz.com/web-stress:1
+
+
+sudo docker service create \
+  --name web-stress \
+  --constraint 'node.hostname == worker-1' \
+  --network pymonnet-net \
+  -p 7777:7777 \
+  docker-registry.amirmuz.com/web-stress:3
+
+
+# to testing move to another worker nodes
+sudo docker service rm web-stress
+sudo docker service create \
+  --name web-stress \
+  --constraint 'node.role == worker' \
+  --network pymonnet-net \
+  --replicas 1 \
+  -p 7777:7777 \
+  docker-registry.amirmuz.com/web-stress:4
+
+
+sudo docker node update --label-add zone=stress worker-1
+sudo docker node update --label-add zone=stress worker-2
+sudo docker node update --label-add zone=stress worker-4
+
+sudo docker node ls -q | xargs sudo docker node inspect -f '{{.Description.Hostname}}: {{.Spec.Labels}}'
+
+sudo docker service rm web-stress
+sudo docker service create \
+  --name web-stress \
+  --replicas 1 \
+  --constraint 'node.labels.zone == stress' \
+  --network pymonnet-net \
+  -p 7777:7777 \
+  docker-registry.amirmuz.com/web-stress:5
+
+sudo docker node update --label-rm zone worker-1
+sudo docker node update --label-rm zone worker-2
+sudo docker node update --label-rm zone worker-4
+sudo docker node update --label-add zone=stress worker-1
+sudo docker node update --label-add zone=stress worker-2
+sudo docker node update --label-add zone=stress worker-3
+sudo docker node update --label-add zone=stress worker-4
+sudo docker node ls -q | xargs sudo docker node inspect -f '{{.Description.Hostname}}: {{.Spec.Labels}}'
+
+
+curl -O "http://192.168.2.50:7777/stress/profile/all?cpu_duration=300&cpu_workers=8&memory_mb=16384&memory_hold=300&network_mb=4096"
+
+
+================================================================================================================
+
+sudo docker service rm pymonnet-agent-master
+sudo docker service rm pymonnet-agent-worker1
+sudo docker service rm pymonnet-agent-worker2
+sudo docker service rm pymonnet-agent-worker3
+sudo docker service rm pymonnet-agent-worker4
+
+# Master node
+sudo docker service create \
+  --name pymonnet-agent-master \
+  --constraint 'node.hostname == master' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --mount type=bind,src=/sys,dst=/host/sys,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=enp5s0f0 \
+  docker-registry.amirmuz.com/pymonnet-agent:14
+
+# Worker 1
+sudo docker service create \
+  --name pymonnet-agent-worker1 \
+  --constraint 'node.hostname == worker-1' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --mount type=bind,src=/sys,dst=/host/sys,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=eno1 \
+  docker-registry.amirmuz.com/pymonnet-agent:14
+  
+# Worker 2
+sudo docker service create \
+  --name pymonnet-agent-worker2 \
+  --constraint 'node.hostname == worker-2' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --mount type=bind,src=/sys,dst=/host/sys,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=enp0s25 \
+  docker-registry.amirmuz.com/pymonnet-agent:14
+
+# Worker 3
+sudo docker service create \
+  --name pymonnet-agent-worker3 \
+  --constraint 'node.hostname == worker-3' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --mount type=bind,src=/sys,dst=/host/sys,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=enp2s0 \
+  docker-registry.amirmuz.com/pymonnet-agent:14
+
+# Worker 4
+sudo docker service create \
+  --name pymonnet-agent-worker4 \
+  --constraint 'node.hostname == worker-4' \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/proc,dst=/host/proc,ro=true \
+  --mount type=bind,src=/sys,dst=/host/sys,ro=true \
+  --network pymonnet-net \
+  -e NET_IFACE=eno1 \
+  docker-registry.amirmuz.com/pymonnet-agent:14
+
+
+Stress Type	Example Command	Description
+🧮 CPU	
+curl "http://192.168.2.50:7777/stress?cpu=true&cpu_duration=15"	
+curl "http://192.168.2.50:7777/stress/profile/cpu?cpu_duration=15&cpu_workers=4"
+
+Burn CPU for 15 s
+💾 Memory	
+curl "http://192.168.2.50:7777/stress?memory=true&memory_mb=6656&memory_hold=15"	
+Allocate ~512 MB RAM for 15 s
+🌐 Network	
+curl -O "http://192.168.2.50:7777/stress?network=true&network_mb=200"	
+Stream 200 MB of data back (tests outbound throughput)
+🔥 Combined	
+curl "http://192.168.2.50:7777/stress/profile/all?cpu_duration=15&memory_mb=512&network_mb=250"
+
+
+CPU + Memory
+curl "http://192.168.2.50:7777/stress/profile/cpu-memory?cpu_duration=30&cpu_workers=4&memory_mb=6656&memory_hold=30"
+
+CPU + Network
+curl -O "http://192.168.2.50:7777/stress/profile/cpu-network?cpu_duration=30&cpu_workers=4&network_mb=512"
+
+Memory + Network
+curl -O "http://192.168.2.50:7777/stress/profile/memory-network?memory_mb=6656&memory_hold=30&network_mb=512"
+
+All (CPU + Memory + Network)
+curl -O "http://192.168.2.50:7777/stress/profile/all?cpu_duration=30&cpu_workers=16&memory_mb=32768&memory_hold=30&network_mb=512"
+
+
+
+cpu: 
+curl "http://192.168.2.50:7777/stress?cpu=true&cpu_duration=30&cpu_workers=4"
+
+memory: 
+curl "http://192.168.2.50:7777/stress?memory=true&memory_mb=6656&memory_hold=30"
+
+network: 
+curl -O "http://192.168.2.50:7777/stress?network=true&network_mb=512&network_chunk_kb=512"
+
+cpu+memory: 
+curl "http://192.168.2.50:7777/stress?cpu=true&memory=true&cpu_duration=30&cpu_workers=4&memory_mb=6656&memory_hold=30"
+
+cpu+network: 
+curl -O "http://192.168.2.50:7777/stress?cpu=true&network=true&cpu_duration=30&cpu_workers=4&network_mb=512&network_chunk_kb=256"
+
+memory+network: 
+curl -O "http://192.168.2.50:7777/stress?memory=true&network=true&memory_mb=6656&memory_hold=30&network_mb=512"
+
+all: 
+curl -O "http://192.168.2.51:7777/stress/profile/all?cpu_duration=300&cpu_workers=16&memory_mb=32768&memory_hold=300&network_mb=4096"
+
+
+
+sudo docker ps | grep web-stress
+sudo docker logs $(sudo docker ps -q --filter name=web-stress) | tail -n 20
+sudo docker inspect $(sudo docker ps -q --filter name=web-stress) | grep -A2 '"State"'
+
+awk -F',' '
+NR>1 {
+  if ($2=="DOWN" && start=="") start=$1
+  if ($2=="UP" && start!="" && end=="") end=$1
+}
+END {
+  if (start && end) printf("Downtime duration: %.2f seconds\n", (end-start)/1000)
+  else print("No outage detected.")
+}' swarm_probe_*.csv
+
+
+worker-1
+curl -O "http://192.168.2.50:7777/stress/profile/all?cpu_duration=300&cpu_workers=16&memory_mb=7820&memory_hold=300&network_mb=4096"
+curl -O "http://192.168.2.50:7777/stress/profile/all?cpu_duration=300&cpu_workers=16&memory_mb=12920&memory_hold=300&network_mb=2048"
+
+worker-2
+curl -O "http://192.168.2.50:7777/stress/profile/all?cpu_duration=300&cpu_workers=16&memory_mb=12920&memory_hold=300&network_mb=2048"
+
+
+worker-4
+curl -O "http://192.168.2.50:7777/stress/profile/all?cpu_duration=300&cpu_workers=32&memory_mb=18910&memory_hold=300&network_mb=4096"
+
+./probe.sh http://192.168.2.50:7777/page-heavy 10
+./realtime_monitor.sh "http://192.168.2.50:7777/page-heavy" 10 300
+
+
+curl http://192.168.2.50:6969/nodes | jq
+
+
+
+
+
+
+
+# TESTING TESTINT TESTING
+
+worker-11
+./realtime_monitor.sh "http://192.168.2.50:7777/page-heavy" 10 300
+
+macbook
+./pi_controller.sh custom 90 70 "/stress/profile/all?cpu_duration=10&cpu_workers=4&memory_mb=1024&memory_hold=10&network_mb=10"
+
+
+master
+sudo docker service ps web-stress
+sudo docker node ls
+
+
+
+./rpi_v2.sh extreme
+./realtime_monitor.sh "http://192.168.2.50:7777/page-heavy" 10 300
+
+
+1. Test with 50 connections per Pi (balanced load):
+bash./flexible_burst_test.sh custom 50 60 2 256 10
+This will:
+	50 × 4 = 200 concurrent connections
+	Run for 60 seconds then STOP (resources drop back)
+	CPU: 2s work per request = balanced CPU load
+	Memory: 256MB per request = ~50GB total (balanced)
+	Network: 10MB response = balanced network
+
+
+# ========================================================================================
+
+git add .
+git commit -m "fix srm"
+git push origin main
+
+git pull
+sudo docker build -t docker-registry.amirmuz.com/swarm-recovery-manager:11 .
+sudo docker push docker-registry.amirmuz.com/swarm-recovery-manager:11
+
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --constraint 'node.role == manager' \
+  --replicas 1 \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env POLL_INTERVAL=5 \
+  --env NODE_CPU_THRESHOLD=85 \
+  --env NODE_MEM_THRESHOLD=90 \
+  --env CONTAINER_CPU_THRESHOLD=95 \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --mount type=bind,src=/var/log/recovery-manager,dst=/var/log \
+  --network pymonnet-net \
+  docker-registry.amirmuz.com/swarm-recovery-manager:1
+
+# ========================================================================================
+sudo docker service rm swarm-recovery-manager
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --constraint 'node.role == manager' \
+  --replicas 1 \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env POLL_INTERVAL=5 \
+  --env NODE_CPU_THRESHOLD=85 \
+  --env NODE_MEM_THRESHOLD=90 \
+  --env CONTAINER_CPU_THRESHOLD=95 \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --network pymonnet-net \
+  docker-registry.amirmuz.com/swarm-recovery-manager:1
+
+
+sudo docker service rm swarm-recovery-manager
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --mode global \
+  --constraint 'node.role == worker' \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env POLL_INTERVAL=5 \
+  --env NODE_CPU_THRESHOLD=85 \
+  --env NODE_MEM_THRESHOLD=90 \
+  --env CONTAINER_CPU_THRESHOLD=95 \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --network pymonnet-net \
+  docker-registry.amirmuz.com/swarm-recovery-manager:2
+
+
+sudo docker service rm swarm-recovery-manager 2>/dev/null || true
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --constraint 'node.role == manager' \
+  --replicas 1 \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env POLL_INTERVAL=5 \
+  --env NODE_CPU_THRESHOLD=85 \
+  --env NODE_MEM_THRESHOLD=90 \
+  --env CONTAINER_CPU_THRESHOLD=95 \
+  --env REMOTE_DOCKER_HOSTS=worker-1=tcp://192.168.2.51:2375,worker-2=tcp://192.168.2.52:2375,worker-3=tcp://192.168.2.53:2375,worker-4=tcp://192.168.2.54:2375 \
+  --env REMOTE_DOCKER_TLS_VERIFY=false \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --network pymonnet-net \
+  docker-registry.amirmuz.com/swarm-recovery-manager:2
+
+sudo docker service rm swarm-recovery-manager 2>/dev/null || true
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --constraint 'node.role == manager' \
+  --replicas 1 \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env POLL_INTERVAL=5 \
+  --env NODE_CPU_THRESHOLD=85 \
+  --env NODE_MEM_THRESHOLD=90 \
+  --env CONTAINER_CPU_THRESHOLD=95 \
+  --env REMOTE_DOCKER_HOSTS=worker-1=tcp://192.168.2.51:2375,worker-2=tcp://192.168.2.52:2375,worker-3=tcp://192.168.2.53:2375,worker-4=tcp://192.168.2.54:2375 \
+  --env REMOTE_DOCKER_TLS_VERIFY=false \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --network pymonnet-net \
+  docker-registry.amirmuz.com/swarm-recovery-manager:2
+
+================================== claude ==================================
+# Remove old service
+sudo docker service rm swarm-recovery-manager 2>/dev/null || true
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --constraint 'node.role == manager' \
+  --replicas 1 \
+  --network pymonnet-net \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env POLL_INTERVAL=2 \
+  --env REQUEST_TIMEOUT=3 \
+  --env NODE_CPU_WARNING=60 \
+  --env NODE_CPU_CRITICAL=75 \
+  --env NODE_MEM_WARNING=70 \
+  --env NODE_MEM_CRITICAL=85 \
+  --env CONTAINER_CPU_THRESHOLD=80 \
+  --env NETWORK_OUT_THRESHOLD=40 \
+  --env STALE_SECONDS=15 \
+  --env COOLDOWN_RESTART=30 \
+  --env COOLDOWN_SCALE=20 \
+  --env COOLDOWN_REDEPLOY=60 \
+  --env MAX_RESTARTS_BEFORE_REDEPLOY=2 \
+  --env RESTART_WINDOW_SECONDS=180 \
+  --env TREND_WINDOW_SIZE=6 \
+  --env TREND_INCREASE_THRESHOLD=15 \
+  --env REMOTE_DOCKER_HOSTS=worker-1=tcp://192.168.2.51:2375,worker-2=tcp://192.168.2.52:2375,worker-3=tcp://192.168.2.53:2375,worker-4=tcp://192.168.2.54:2375 \
+  --env REMOTE_DOCKER_TLS_VERIFY=false \
+  --env LOG_LEVEL=INFO \
+  docker-registry.amirmuz.com/swarm-recovery-manager:11
+
+# Wait for service to start
+echo "Waiting for service to start..."
+sleep 5
+
+# Check service status
+echo "Service status:"
+sudo docker service ps swarm-recovery-manager
+
+# Show logs
+echo ""
+echo "Tailing logs (Ctrl+C to stop)..."
+sudo docker service logs -f swarm-recovery-manager
+
+
+
+git add .
+git commit -m "fix srm"
+git push origin main
+
+git pull
+sudo docker build -t docker-registry.amirmuz.com/swarm-recovery-manager:31 .
+sudo docker push docker-registry.amirmuz.com/swarm-recovery-manager:31
+
+sudo docker service rm swarm-recovery-manager
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --constraint 'node.role == manager' \
+  --replicas 1 \
+  --network pymonnet-net \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env LOG_LEVEL=INFO \
+  --env REQUEST_TIMEOUT=3 \
+  --env POLL_INTERVAL=1 \
+  --env NODE_CPU_CRITICAL=50 \
+  --env NODE_MEM_CRITICAL=60 \
+  --env CONTAINER_CPU_THRESHOLD=70 \
+  --env NETWORK_OUT_THRESHOLD=40 \
+  --env COOLDOWN_MIGRATE=20 \
+  --env COOLDOWN_SCALE_UP=15 \
+  --env COOLDOWN_SCALE_DOWN=15 \
+  --env SCALE_DOWN_FACTOR=0.8 \
+  --env REMOTE_DOCKER_HOSTS=worker-1=tcp://192.168.2.51:2375,worker-2=tcp://192.168.2.52:2375,worker-3=tcp://192.168.2.53:2375,worker-4=tcp://192.168.2.54:2375 \
+  --env REMOTE_DOCKER_TLS_VERIFY=false \
+  docker-registry.amirmuz.com/swarm-recovery-manager:31
+sudo docker service logs -f swarm-recovery-manager
+
+
+
+sudo docker service rm swarm-recovery-manager
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --constraint 'node.role == manager' \
+  --replicas 1 \
+  --network pymonnet-net \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env LOG_LEVEL=INFO \
+  --env REQUEST_TIMEOUT=2 \
+  --env POLL_INTERVAL=1 \
+  --env NODE_CPU_WARNING=50 \
+  --env NODE_CPU_CRITICAL=60 \
+  --env NODE_MEM_WARNING=50 \
+  --env NODE_MEM_CRITICAL=60 \
+  --env CONTAINER_CPU_THRESHOLD=70 \
+  --env NETWORK_OUT_THRESHOLD=40 \
+  --env STALE_SECONDS=15 \
+  --env COOLDOWN_RESTART=10 \
+  --env COOLDOWN_SCALE=10 \
+  --env COOLDOWN_REDEPLOY=15 \
+  --env MAX_RESTARTS_BEFORE_REDEPLOY=2 \
+  --env RESTART_WINDOW_SECONDS=180 \
+  --env TREND_WINDOW_SIZE=6 \
+  --env TREND_INCREASE_THRESHOLD=15 \
+  --env REMOTE_DOCKER_HOSTS=worker-1=tcp://192.168.2.51:2375,worker-2=tcp://192.168.2.52:2375,worker-3=tcp://192.168.2.53:2375,worker-4=tcp://192.168.2.54:2375 \
+  --env REMOTE_DOCKER_TLS_VERIFY=false \
+  docker-registry.amirmuz.com/swarm-recovery-manager:22
+
+
+sudo docker service create --name swarm-recovery-manager --constraint 'node.role == manager' --replicas 1 --network pymonnet-net --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock --env PYMONNET_URL=http://pymonnet-server:6969 --env LOG_LEVEL=INFO --env REQUEST_TIMEOUT=3 --env POLL_INTERVAL=2 --env NODE_CPU_WARNING=60 --env NODE_CPU_CRITICAL=75 --env NODE_MEM_WARNING=70 --env NODE_MEM_CRITICAL=85 --env CONTAINER_CPU_THRESHOLD=80 --env NETWORK_OUT_THRESHOLD=40 --env STALE_SECONDS=15 --env COOLDOWN_RESTART=5 --env COOLDOWN_SCALE=5 --env COOLDOWN_REDEPLOY=15 --env MAX_RESTARTS_BEFORE_REDEPLOY=2 --env RESTART_WINDOW_SECONDS=180 --env TREND_WINDOW_SIZE=6 --env TREND_INCREASE_THRESHOLD=15 --env REMOTE_DOCKER_HOSTS=worker-1=tcp://192.168.2.51:2375,worker-2=tcp://192.168.2.52:2375,worker-3=tcp://192.168.2.53:2375,worker-4=tcp://192.168.2.54:2375 --env REMOTE_DOCKER_TLS_VERIFY=false docker-registry.amirmuz.com/swarm-recovery-manager:12
+
+
+sudo docker service rm swarm-recovery-manager
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --constraint 'node.role == manager' \
+  --replicas 1 \
+  --network pymonnet-net \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env LOG_LEVEL=INFO \
+  --env REQUEST_TIMEOUT=2 \
+  --env POLL_INTERVAL=1 \
+  --env NODE_CPU_WARNING=60 \
+  --env NODE_CPU_CRITICAL=75 \
+  --env NODE_MEM_WARNING=70 \
+  --env NODE_MEM_CRITICAL=85 \
+  --env CONTAINER_CPU_THRESHOLD=80 \
+  --env NETWORK_OUT_THRESHOLD=40 \
+  --env STALE_SECONDS=15 \
+  --env COOLDOWN_RESTART=5 \
+  --env COOLDOWN_SCALE=5 \
+  --env COOLDOWN_REDEPLOY=15 \
+  --env MAX_RESTARTS_BEFORE_REDEPLOY=2 \
+  --env RESTART_WINDOW_SECONDS=180 \
+  --env TREND_WINDOW_SIZE=6 \
+  --env TREND_INCREASE_THRESHOLD=15 \
+  --env REMOTE_DOCKER_HOSTS=worker-1=tcp://192.168.2.51:2375,worker-2=tcp://192.168.2.52:2375,worker-3=tcp://192.168.2.53:2375,worker-4=tcp://192.168.2.54:2375 \
+  --env REMOTE_DOCKER_TLS_VERIFY=false \
+  docker-registry.amirmuz.com/swarm-recovery-manager:17
+
+
+
+
+sudo docker service rm swarm-recovery-manager 2>/dev/null || true
+sudo docker service create \
+  --name swarm-recovery-manager \
+  --constraint 'node.role == manager' \
+  --replicas 1 \
+  --network pymonnet-net \
+  --mount type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock \
+  --env PYMONNET_URL=http://pymonnet-server:6969 \
+  --env LOG_LEVEL=INFO \
+  --env REQUEST_TIMEOUT=3 \
+  --env POLL_INTERVAL=2 \
+  --env NODE_CPU_WARNING=60 \
+  --env NODE_CPU_CRITICAL=75 \
+  --env NODE_MEM_WARNING=70 \
+  --env NODE_MEM_CRITICAL=85 \
+  --env CONTAINER_CPU_THRESHOLD=80 \
+  --env NETWORK_OUT_THRESHOLD=40 \
+  --env STALE_SECONDS=15 \
+  --env COOLDOWN_RESTART=30 \
+  --env COOLDOWN_SCALE=20 \
+  --env COOLDOWN_REDEPLOY=60 \
+  --env MAX_RESTARTS_BEFORE_REDEPLOY=2 \
+  --env RESTART_WINDOW_SECONDS=180 \
+  --env TREND_WINDOW_SIZE=6 \
+  --env TREND_INCREASE_THRESHOLD=15 \
+  --env REMOTE_DOCKER_HOSTS=worker-1=tcp://192.168.2.51:2375,worker-2=tcp://192.168.2.52:2375,worker-3=tcp://192.168.2.53:2375,worker-4=tcp://192.168.2.54:2375 \
+  --env REMOTE_DOCKER_TLS_VERIFY=false \
+  \
+  docker-registry.amirmuz.com/swarm-recovery-manager:11
+

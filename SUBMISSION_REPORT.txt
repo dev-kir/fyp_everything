@@ -1,0 +1,4667 @@
+UNIVERSITI TEKNOLOGI MARA
+
+DESIGN AND IMPLEMENTATION
+OF A RULE-BASED PROACTIVE
+RECOVERY MECHANISM FOR
+CONTAINERIZED APPLICATIONS
+USING DOCKER SWARM
+AMIR MUZAKKIR BIN MD KAMARU AL-AMIN
+
+BACHELOR OF COMPUTER SCIENCE (HONS.)
+COMPUTER NETWORKS
+
+FEBRUARY 2026
+
+Universiti Teknologi MARA
+
+Design and Implementation of a RuleBased Proactive Recovery Mechanism
+for Containerized Applications Using
+Docker Swarm
+
+Amir Muzakkir Bin Md Kamaru Al-Amin
+
+Thesis submitted in fulfilment of the requirements
+for Bachelor of Computer Science (Hons.)
+Computer Networks Faculty of Computer and
+Mathematical Sciences
+
+February 2026
+
+SUPERVISOR APPROVAL
+
+DESIGN AND IMPLEMENTATION OF A RULE-BASED PROACTIVE
+RECOVERY MECHANISM FOR CONTAINERIZED APPLICATIONS USING
+DOCKER SWARM
+BY
+
+AMIR MUZAKKIR BIN MD KAMARU AL-AMIN
+2024554173
+
+This thesis was prepared under the supervision of the project supervisor, Dr. Nurshahrily
+Idura Binti Hj. Ramli. It was submitted to the Faculty of Computer and Mathematical
+Sciences and was accepted in partial fulfilment of the requirements for the degree of
+Bachelor of Computer Science (Hons.) Computer Networks.
+
+Approved by
+
+......................................................
+Dr. Nurshahrily Idura Binti Hj. Ramli
+Project Supervisor
+
+9 FEBRUARY, 2026
+
+i
+
+STUDENT DECLARATION
+
+I certify that this thesis and the project to which it refers is the product of my own work and
+that any idea or quotation from the work of other people, published or otherwise are fully
+acknowledged in accordance with the standard referencing practices of the discipline.
+
+......................................................
+AMIR MUZAKKIR BIN MD KAMARU AL-AMIN
+2024554173
+
+9 FEBRUARY, 2026
+
+ii
+
+ACKNOWLEDGEMENT
+
+First and foremost, I would like to express my deepest gratitude to Allah SWT for
+granting me the strength, patience, and perseverance to complete this Final Year Project
+successfully.
+
+I would like to sincerely thank my supervisor, Dr. Nurshahrily Idura Binti Hj. Ramli,
+for her unwavering support, valuable guidance, and constructive feedback throughout the
+development of this project titled “Design and Implementation of a Rule-Based Proactive
+Recovery Mechanism for Containerized Applications Using Docker Swarm.” Her insights
+and encouragement have been instrumental in shaping the direction and execution of this
+work.
+
+My heartfelt appreciation also goes to all the lecturers and staff of the Faculty of
+Computer and Mathematical Sciences (FSKM), Universiti Teknologi MARA (UiTM), for
+equipping me with the knowledge and skills that enabled me to undertake and complete this
+project.
+
+I wish to express my profound gratitude to my classmates, and friends for their
+unwavering encouragement, insightful talks, and support, particularly during the testing and
+validation phases.
+
+Finally, I wish to express my gratitude to my cherished parents and family for their
+unwavering love, prayers, and moral support during my academic pursuits. This
+accomplishment would not have been attainable without their sacrifices and support.
+
+iii
+
+ABSTRACT
+
+The increased use of containerized applications in today's software deployment has
+led to substantial benefits in scalability, flexibility, and performance. However, these
+advantages are accompanied by some operation challenges, particularly when it comes to
+container failures at runtime. In Docker Swarm configurations, failure recovery solutions
+are usually reactive and rely on simple health checks and container restarts that only react
+after the total failure of the service has occurred, which translates to Mean Time to Recovery
+(MTTR) of more than 20 seconds and frequent service unavailability. This research
+overcomes these shortcomings by the design, implementation and validation of
+SwarmGuard, a rule-based proactive recovery mechanism that detects early warning signs
+of failure and applies context-aware recovery strategies before total service degradation
+occurs. The system uses lightweight threshold-based logic to monitor CPU, memory and
+network I/O metrics with 7-9 millisecond alert latency. A novel network-aware classification
+separates between node specific problems, which demand container migration, and cluster
+wide traffic surges, which demand horizontal scaling. SwarmGuard consists of three main
+components: a monitoring agent written in Python, a rule-based decision engine written in
+Python and a recovery executor that applies zero-downtime corrective action calls through
+Docker Swarm's built-in rolling update API. The system uses InfluxDB for the storage of
+metrics and Grafana for real-time visualizations and keeps minimum CPU usage (less than
+5% per node). Experimental validation on a five-node physical testbed with the use of
+Raspberry Pi version 1.2B+ devices showed that the performance improvement is significant
+compared to Docker Swarm's reactive baseline: proactive migration saw a 97.4% reduction
+in the mean MTTR (from 23.10 seconds to 0.60 seconds) and 80% of tests showed zero
+measurable downtime compared to 0% in the reactive baseline. The horizontal auto-scaling
+mechanism was able to provide 6.6 seconds mean scale up latency with a cooldown
+effectiveness of 100%. This research shows that rule-based proactive recovery can deliver
+near zero downtime container orchestration without the complexity of machine learning to
+provide practical reliability enhancements to small to medium enterprises managing Docker
+Swarm clusters.
+
+iv
+
+TABLE OF CONTENTS
+
+SUPERVISOR APPROVAL ............................................................................................... I
+STUDENT DECLARATION ............................................................................................. II
+ACKNOWLEDGEMENT ............................................................................................... III
+ABSTRACT .......................................................................................................................IV
+TABLE OF CONTENTS.................................................................................................... V
+LIST OF FIGURES ...........................................................................................................IX
+LIST OF TABLES .............................................................................................................XI
+LIST OF ABBREVIATIONS .......................................................................................... XII
+CHAPTER 1 ......................................................................................................................... 1
+INTRODUCTION ............................................................................................................... 1
+1.1 Background of Study ................................................................................................... 1
+1.2 Problem Statement ....................................................................................................... 2
+1.3 Project Objectives ........................................................................................................ 3
+1.4 Scope of Project ........................................................................................................... 4
+1.5 Significance of Project................................................................................................. 5
+CHAPTER 2 ......................................................................................................................... 7
+LITERATURE REVIEW ................................................................................................... 7
+2.1 Introduction ................................................................................................................. 7
+2.2 Container Orchestration Platforms .............................................................................. 8
+2.2.1 Docker Swarm Architecture ................................................................................. 8
+2.2.2 Kubernetes Architecture (Comparative Context) ............................................... 10
+2.2.3 Container Scheduling Algorithms ...................................................................... 10
+2.3 Challenges in Reactive Fault Recovery ..................................................................... 12
+2.3.1 Detection Latency and Guaranteed Downtime ................................................... 12
+2.3.2 Resource Exhaustion Detection Gaps................................................................. 13
+2.3.3 State Management During Failures .................................................................... 14
+2.3.4 Impact on Service Level Agreements ................................................................. 16
+2.4 Proactive Recovery Approaches ................................................................................ 16
+2.4.1 Machine Learning vs Rule-Based Approaches ................................................... 17
+v
+
+2.4.2 Threshold-Based Detection Systems .................................................................. 18
+2.4.3 Comparative Analysis of Proactive Techniques ................................................. 19
+2.5 Container Migration and Zero-Downtime Strategies ................................................ 21
+2.5.1 Migration Techniques ......................................................................................... 21
+2.5.2 CRIU vs Rolling Update Comparison ................................................................ 23
+2.5.3 Connection Draining and Session Management ................................................. 24
+2.6 Monitoring Infrastructure .......................................................................................... 25
+2.6.1 Push vs Pull Monitoring Models ........................................................................ 25
+2.6.2 Time-Series Databases for Metrics Storage........................................................ 27
+2.6.3 Real-Time Visualization with Grafana ............................................................... 27
+2.7 Auto-Scaling Mechanisms ......................................................................................... 28
+2.7.1 Horizontal vs Vertical Scaling ............................................................................ 28
+2.7.2 Cooldown Periods and Oscillation Prevention ................................................... 29
+2.8 Network-Aware Failure Classification ...................................................................... 30
+2.8.1 Context-Aware Recovery Decisions ................................................................... 30
+2.8.2 Multi-Metric Correlation Analysis ..................................................................... 32
+2.9 Related Work and Comparative Analysis .................................................................. 34
+2.9.1 SwarmGuard's Differentiation from Existing Research ..................................... 38
+2.10 Summary and Research Gap Identification ............................................................. 40
+CHAPTER 3 ....................................................................................................................... 41
+RESEARCH METHODOLOGY ..................................................................................... 41
+3.1 Introduction ............................................................................................................... 41
+3.2 System Architecture and Design................................................................................ 42
+3.2.1 Overall System Architecture ............................................................................... 42
+3.2.2 Proactive Recovery Workflow ............................................................................ 43
+3.2.3 Network-Aware Failure Classification ............................................................... 45
+3.2.4 Zero-Downtime Migration Strategy ................................................................... 45
+3.3 Requirements Analysis .............................................................................................. 46
+3.3.1 Functional Requirements .................................................................................... 46
+3.3.2 Non-Functional Requirements ............................................................................ 48
+3.3.3 Hardware and Software Requirements ............................................................... 49
+3.4 Development and Implementation............................................................................. 50
+3.4.1 Development Methodology ................................................................................ 50
+3.4.2 Technology Stack Justification ........................................................................... 51
+3.4.3 Cluster Infrastructure Setup ................................................................................ 52
+3.4.4 Monitoring Stack Deployment ........................................................................... 53
+vi
+
+3.4.5 Automation Script Architecture .......................................................................... 54
+3.4.6 Configuration Management ................................................................................ 54
+3.5 Research Methodology Overview ............................................................................. 55
+3.5.1 Experimental Design .......................................................................................... 55
+3.5.2 Stress Testing Application .................................................................................. 55
+3.5.3 Evaluation Metrics .............................................................................................. 56
+3.5.4 Statistical Analysis .............................................................................................. 56
+3.5.5 Experimental Procedure ..................................................................................... 57
+3.5.6 Gantt Chart and Project Timeline ....................................................................... 57
+3.6 Ethical Considerations ............................................................................................... 58
+3.7 Chapter Summary ...................................................................................................... 58
+CHAPTER 4 ....................................................................................................................... 60
+RESULT AND FINDINGS................................................................................................ 60
+4.1 Introduction ............................................................................................................... 60
+4.2 Baseline Performance: Docker Swarm Reactive Recovery ...................................... 62
+4.2.1 Experimental Setup............................................................................................. 62
+4.2.2 Mean Time To Recovery (MTTR) Results ......................................................... 62
+4.2.3 Downtime Characteristics................................................................................... 64
+4.3 Scenario 1: Proactive Migration Results ................................................................... 65
+4.3.1 Test Configuration and Methodology ................................................................. 65
+4.3.2 Mean Time To Recovery Results ........................................................................ 66
+4.3.3 Comparative Analysis: Baseline vs. Scenario 1 ................................................. 68
+4.4 Scenario 2: Horizontal Auto-Scaling with Lease-Based Load Balancing ................. 73
+4.4.1 Test Configuration and Methodology ................................................................. 73
+4.4.2 Scaling Performance Results .............................................................................. 74
+4.4.3 Lease-Based Load Balancing Algorithm ............................................................ 76
+4.4.4 Cooldown Mechanism Effectiveness ................................................................. 78
+4.5 System Overhead Analysis ........................................................................................ 79
+4.5.1 Measurement Methodology ................................................................................ 79
+4.5.2 Cluster-Level Overhead Results ......................................................................... 79
+4.5.3 Per-Node Overhead Distribution ........................................................................ 80
+4.6 Discussion .................................................................................................................. 81
+4.6.1 Achievement of Research Objectives ................................................................. 81
+4.6.2 Implications for Container Orchestration ........................................................... 82
+4.6.3 Limitations and Future Work .............................................................................. 82
+CHAPTER 5 ....................................................................................................................... 84
+vii
+
+CONCLUSION AND RECOMMENDATIONS ............................................................. 84
+5.1 Conclusion ................................................................................................................. 84
+5.2 Research Contributions.............................................................................................. 84
+5.3 Implications for Practice and Theory ........................................................................ 85
+5.3.1 Practical Implications ......................................................................................... 85
+5.3.2 Theoretical Implications ..................................................................................... 86
+5.4 Limitations of the Study ............................................................................................ 86
+5.5 Recommendations for Future Work........................................................................... 86
+5.6 Final Remarks ............................................................................................................ 87
+REFERENCES .................................................................................................................. 88
+
+viii
+
+LIST OF FIGURES
+
+Figure 1: Evolution of Application Deployment Technologies ............................................. 7
+Figure 2: Docker Swarm Architecture ................................................................................... 9
+Figure 3: Container Scheduling Algorithm ......................................................................... 11
+Figure 4: Reactive Recovery Timeline ................................................................................ 12
+Figure 5: Health Check Detection Delay............................................................................. 13
+Figure 6: Resource Exhaustion Detection Gap ................................................................... 14
+Figure 7: Threshold-Based Detection Challenges ............................................................... 18
+Figure 8: Container Migration Strategies ............................................................................ 22
+Figure 9: Push vs Pull Monitoring Architecture Comparison ............................................. 26
+Figure 10: Horizontal vs Vertical Scaling Comparison ....................................................... 29
+Figure 11: Network-Aware Scenario Classification ............................................................ 31
+Figure 12: Context-Aware Decision Flow ........................................................................... 32
+Figure 13: SwarmGuard System Architecture ..................................................................... 42
+Figure 14: Proactive Recovery Workflow ........................................................................... 44
+Figure 15: Docker Swarm Cluster Network Topology ........................................................ 53
+Figure 16: Project Development Timeline .......................................................................... 57
+Figure 17: SwarmGuard Deployment Architecture ............................................................. 61
+Figure 18: Baseline Reactive Recovery Health Check Results ........................................... 63
+Figure 19: Baseline Reactive Recovery Service Status ....................................................... 64
+Figure 20: Scenario Classification Decision Tree ............................................................... 65
+ix
+
+Figure 21: Proactive Migration Health Check Results ........................................................ 67
+Figure 22: Proactive Migration Service Status .................................................................... 68
+Figure 23: Scenario 1 Resource Utilization Patterns ........................................................... 69
+Figure 24: Recovery Timeline Comparison ........................................................................ 70
+Figure 25: Recovery Timeline of Scenario 1 (Zero Downtime).......................................... 71
+Figure 26: Recovery Timeline of Scenario 1 (~1-3 seconds of downtime)......................... 72
+Figure 27: Baseline Recovery Timeline (22-23 seconds downtime)................................... 73
+Figure 28: Horizontal Auto-Scaling Service Status............................................................. 75
+Figure 29: Scenario 2 Resource Utilization Patterns ........................................................... 76
+Figure 30: Load Balancer Request Distribution .................................................................. 77
+Figure 31: Horizontal Scale-Down Service Status .............................................................. 78
+
+x
+
+LIST OF TABLES
+
+Table 1: Comparative Analysis of Proactive Container Recovery Techniques: Trade-offs
+between accuracy, latency, overhead, and complexity guide selection based on deployment
+requirements. ....................................................................................................................... 20
+Table 2: Comparative Analysis of Related Research on Proactive Container Recovery and
+Fault Tolerance .................................................................................................................... 38
+Table 3: Functional Requirements ....................................................................................... 48
+Table 4: Non-Functional Requirements ............................................................................... 49
+Table 5: Hardware and Software Requirements .................................................................. 50
+Table 6: Baseline MTTR Measurements (Reactive Docker Swarm Recovery) .................. 63
+Table 7: Scenario 1 MTTR Measurements (Proactive migration with SwarmGuard) ........ 67
+Table 8: MTTR Comparison - Baseline vs SwarmGuard Scenario 1.................................. 69
+Table 9: Scenario 2 Horizontal Scaling Performance Results ............................................. 75
+Table 10: Cooldown Configuration and Effectiveness ........................................................ 78
+Table 11: System Overhead Analysis (Cluster-Level) ......................................................... 80
+Table 12:Per-Node Resource Overhead Breakdown ........................................................... 81
+
+xi
+
+LIST OF ABBREVIATIONS
+
+API
+
+Application Programming Interface
+
+CLI
+
+Command Line Interface
+
+CPU
+
+Central Processing Unit
+
+FYP
+
+Final Year Project
+
+IoT
+
+Internet of Things
+
+JSON
+
+JavaScript Object Notation
+
+ML
+
+Machine Learning
+
+MTTR
+
+Mean Time to Recovery
+
+RAM
+
+Random Access Memory
+
+VM
+
+Virtual Machine
+
+YAML
+
+Yet another markup language
+
+REST
+
+Representational State Transfer
+
+UI
+
+User Interface
+
+ML-based
+
+Machine Learning-based
+
+RL
+
+Reinforcement Learning
+
+CEP
+
+Complex Event Processing
+
+OS
+
+Operating System
+
+LSTM
+
+Long Short-Term Memory
+
+HTTP
+
+Hypertext Transfer Protocol
+
+CRIU
+
+Checkpoint/Restore In Userspace
+
+SME
+
+Small and Medium Enterprise
+
+SLA
+
+Service Level Agreement
+
+CNCF
+
+Cloud Native Computing Foundation
+
+TCP
+
+Transmission Control Protocol
+
+OOM
+
+Out of Memory
+
+xii
+
+CHAPTER 1
+
+INTRODUCTION
+
+1.1 Background of Study
+Containerization technology has transformed the software deployment process since
+Docker was introduced in 2013. Containers take advantage of OS-level virtualization
+using Linux kernel functionalities (namespaces, cgroups) and make it possible to deploy
+applications in a lightweight manner with milliseconds of startup time as opposed to
+minutes in the case of virtual machines (Queiroz et al, 2023). This efficiency has made
+containerization the de facto standard for cloud native applications.
+
+Microservices architecture helped in the growth of containers as organizations
+became able to divide monolithic applications into stand-alone deployable services
+(Velepucha & Flores, 2023). According to Cloud Native Computing Foundation's
+survey for 2024, 93% of 750+ organizations use Kubernetes and 80% of them are in
+production, up from 66% in 2023 (CNCF, 2024). Docker Swarm provides easier
+orchestration for SMEs as it is integratively natively available in Docker and has less
+operational overhead compared to Kubernetes (Purahong et al., 2023).
+
+Container failures in production have a direct effect on revenue and user experience.
+According to industry research, 90% of enterprises experience more than $300,000 for
+every hour of downtime, and 41% of them reported $1-5 million for each hour of
+downtime (Information Technology Intelligence Consulting, 2024). Research shows
+100ms load time improvements increase conversion rates by 8.4% (Deloitte, 2020).
+Studies show that users manage to stay on the task during short delays but report much
+poorer subjective states such as high frustration levels and tension when they have to
+wait for more than 7-10 seconds (Arapakis et al., 2021).
+1
+
+Container technology has become a cornerstone of modern day IT infrastructure.
+According to Virtualization Info (2025), more than 90% of organizations are now using
+(or looking at) containers, and the container infrastructure software market was set to
+be $465.8 million in 2020 and nearly doubled to $944 million in 2024, which shows
+how important container orchestration platforms are like Docker Swarm continues to
+be.
+
+Current orchestration platforms have reactive recovery with health check based
+detection and container restarts. Default configurations demonstrate 40 second
+detection times, which can be taken down to 3 seconds with aggressive tuning that
+comes with the risk of false positives (Yang & Kim, 2020). Recovery windows of 2030 seconds leads to the error of http 502/503 and unavailability of service. SwarmGuard
+overcomes these limitations with rule-based proactive recovery; resource stress can be
+detected before failure and near-zero downtime achieved through preventive migration.
+
+1.2 Problem Statement
+Current Docker Swarm implementations have guaranteed downtime of containers in
+the case of failure because of reactive recovery mechanisms. The recovery sequence,
+health check detection (30-40s), termination, scheduling, image pull, and startup, leads
+to a 20-30 seconds MTTR in ideal situations and rises to 60+ seconds in cases where
+images need to be pulled (Yang & Kim, 2020). Users get to face some kind of errors
+like a problem 502/503 and complete unavailability during this window.
+
+This is a lot of down time that creates a lot of business impact. Over 90% of
+enterprises contend with costs of over $300,000/hour. 41% of enterprises report costs
+ranging from $1-5 million/hour (Information Technology Intelligence Consulting,
+2024). Research shows 100ms load time improvements increase conversion rates by
+8.4% (Deloitte, 2020). Mobile users are also leaving behind sites that take a long time
+to load, with studies showing that for every 0.1 second improvement in mobile site
+speed, conversion rates for retail sites go up by 8.4% (Deloitte, 2020).
+2
+
+Existing solutions do not remove downtime. Enhanced reactive recovery works to
+shorten MTTR from 30s to 15-20s but cannot avoid the basic window of downtime.
+Aggressive health checking (1s intervals) causes computational overhead and false
+positives in the case of legitimate load spikes (Yang & Kim, 2020). Over-provisioning
+results in a wasting of 40-60% infrastructure resources with no protection for correlated
+failures.
+
+A different approach is available in proactive fault tolerance with failure prediction
+and preventive migration. Research has shown that proactive techniques can minimize
+failures and reduce the use of resources and energy significantly compared to reactive
+techniques (Tian et al., 2020). However, the implementation requires accurate
+prediction without false positives, light weight monitoring with minimal overhead and
+zero-downtime migration mechanisms. SwarmGuard solves these issues with rulebased thresholds and Docker Swarm's built-in rolling update API.
+
+1.3 Project Objectives
+This research project is focused on the design, implementation and validation of a
+rule-based proactive recovery mechanism for containerized applications running on
+Docker Swarm with zero downtime recovery using predictive monitoring and contextaware recovery strategies. The proposed system, SwarmGuard, solves the basic
+limitations of the reactive recovery approaches by identifying early warning signs of
+container failure before the full service degradation, applying intelligent recovery
+strategies according to the failure context, and performing preventive actions without
+service interruption. Unlike machine learning based prediction systems, which require
+significant amounts of training data and computational costs, SwarmGuard has
+lightweight rule-based thresholds that are optimized for resource limited small and
+medium enterprise (SME) environments that run on legacy network infrastructure. The
+system integrates seamlessly with Docker Swarm's native API and orchestrator
+mechanisms, eliminating the need for platform migration while providing enterprise
+grade improve reliability.
+
+3
+
+Objectives:
+1.To design and develop a lightweight, real-time monitoring and decision system that
+detects early warning signs of container failure through continuous tracking of
+resource utilization metrics (CPU, memory, network I/O) and applies context-aware
+recovery strategies to distinguish between node-specific problems requiring migration
+and cluster-wide traffic surges requiring horizontal scaling.
+2.To design and develop zero-downtime container migration and intelligent autoscaling mechanisms that integrate with Docker Swarm's native API to execute
+recovery actions (container migration between nodes, replica scaling) without service
+interruption, using rolling updates with constraint-based placement manipulation and
+graceful connection draining.
+3.To validate the effectiveness and efficiency of the proposed proactive recovery
+mechanism through comprehensive performance evaluation on physical hardware
+infrastructure, measuring key metrics including Mean Time To Recovery (MTTR),
+system overhead, recovery success rate, and comparative performance against Docker
+Swarm's native reactive recovery baseline.
+
+1.4 Scope of Project
+This research is Docker Swarm specific, and fills a gap in the literature: while
+Kubernetes is the main focus of academic research, Docker Swarm continues to be
+adopted by SMEs. The experimental testbed is a five-node servers connected by
+100Mbps switches, intentionally to mimic resource-constrained SME environments.
+The cluster consists of 1 manager node and 4 worker nodes with some additional
+devices for observability (InfluxDB, Grafana) and distributed load generation.
+
+SwarmGuard tracks three metrics on a container level, CPU percentage, memory
+percentage, and network throughput (Mbps). Metrics collection is performed using the
+Stats API in Docker with 5 second polling intervals, to provide a balance between
+detection latency and overhead of the monitoring system. The system is not focused on
+infrastructure-level monitoring, but instead on containerized workload health.
+4
+
+The system has two proactive strategies. Scenario 1 (node specific problems) triggers
+container migration using Docker Swarm in rolling update with start-first ordering and
+constraint based placement. Scenario 2 (traffic conditions are high) triggers horizontal
+auto-scaling by modifying service replicas The system does NOT implement vertical
+scaling, affinity-based rescheduling or application-level recovery patterns.
+
+SwarmGuard uses rule-based thresholds versus machine learning. The decision
+engine is used for classifying the scenarios based on boolean logic: resource violations
+(CPU > 70% OR memory > 70%) AND network state (>65Mbps = high network traffic,
+<35Mbps = node problems = high). This design removes training data requirements and
+delivers transparent and immediately deployable recovery logic.
+
+Validation is 30 controlled iterations: 10 baseline tests, 10 Scenario 1 tests, 10
+Scenario 2 tests. All experiments use a custom FastAPI stress application with
+controllable CPU, memory and network stress endpoints. Performance measures
+include MTTR (number of seconds), monitoring overhead (CPU%, memory MB,
+network Mbps), scaling latency, quality of load distribution.
+
+SwarmGuard is NOT a replacement of Kubernetes or a production ready enterprise
+solution with HA guarantees. The recovery manager is a single point of failure. The
+system does NOT support a stateful application, multi-cloud deployment, or cluster
+federation. Security implications, advanced networking features (service mesh,
+encrypted overlays) and all-round fault injection diversity are out of scope.
+
+1.5 Significance of Project
+Container failures due to CPU/Memory exhaustion and network failures greatly
+affect small and medium scale Docker Swarm deployments that do not have
+sophisticated recovery infrastructure. Default reactive recovery mechanisms lead to
+
+5
+
+guaranteed downtime in the event of failures and has an impact on service availability
+and user experience.
+
+SwarmGuard presents a lightweight, rule-based proactive recovery framework which
+can detect early warning signs and prevent full-scale outages. The proactive approach
+enhances system availability and lowers MTTR and eliminates unnecessary container
+restarts from reactive recovery. Unlike ML-based systems that have high computational
+needs and do not offer interpretable and configurable decision-making, the rule-based
+design offers interpretable and deployable logic that does not need data science
+expertise.
+
+DevOps teams managing Docker Swarm achieve cost-effective resilience
+improvements with no more hardware or cloud dependencies. Researchers are able to
+benefit from documented light weight recovery strategies that apply to edge and onpremises systems. End users have better service reliability, less downtime and
+continuity of operation.
+
+This project serves to advance the container orchestration and designing of faulttolerant system with demonstration of proactive and rule-based recovery optimized for
+Docker Swarm. It validates the existence of lightweight, transparent reliability
+mechanisms to achieve high availability in distributed container environments without
+ML complexity.
+
+6
+
+CHAPTER 2
+
+LITERATURE REVIEW
+2.1 Introduction
+Container orchestration platforms such as Docker Swarm and Kubernetes have
+changed how applications are deployed by automating the container lifecycle
+management (Casalicchio & Iannucci, 2020). However, reactive fault recovery
+mechanisms cause guaranteed service downtime in the event of container failures,
+which is at odds with modern high availability requirements. This literature review
+covers the evolution of container orchestration, issues in reactive recovery, proactive
+approaches and research gaps that SwarmGuard fills.
+
+Figure 1: Evolution of Application Deployment Technologies
+(Source: Adapted from Bentaleb et al., 2022; Tesser & Borin, 2023)
+
+Figure 1 shows the development of application deployment technologies in three
+different eras. The Bare Metal Era (1990s - 2000s) saw direct hardware deployment
+with recovery times measured in hours. The era of Virtualization (2000s-2010s) brought
+the VM-based isolation with a recovery time in minutes. The modern Container Era
+
+7
+
+(2013-Present) has sub-second recovery times with much improved deployment
+efficiency.
+
+Different container orchestration platforms are available aside from Kubernetes and
+Docker Swarm, with different approaches to the architecture and trade-offs (Moravcik
+& Kontsek, 2021).
+
+2.2 Container Orchestration Platforms
+2.2.1 Docker Swarm Architecture
+Docker Swarm is a native container orchestration built directly into Docker Engine,
+which is a simpler alternative to Kubernetes if the organization needs to implement
+orchestration without operation complexity (Docker Inc., 2024). The architecture is
+manager-worker topology with manager nodes having cluster state kept through Raft
+consensus protocol and worker nodes running containerized workloads.
+
+Key features relevant to fault recovery are service abstraction, which offers
+declarative service definitions with desired numbers of replicas, health checks, which
+offers container level health monitoring via either a health check on an http or tcp
+connection or a health check command with configurable time interval and thresholds
+and automatic rescheduling, which allows manager nodes to detect the failed
+containers and reschedule the replacements on healthy workers. The ingress routing
+mesh distributes traffic from outside into the service using the round-robin loadbalancing mechanism and the embedded DNS server is used to resolve the service
+names to container IP addresses.
+
+Event-driven architecture has become a powerful architecture for developing
+scalable, resilient distributed systems. Sharma et al (2025) document the use of eventdriven architectures, in which services are able to scale independently using
+decoupled event flows, with message brokers buffering events to smooth demand
+spikes, a good match to Docker Swarm's service-oriented deployment model.
+8
+
+Figure 2: Docker Swarm Architecture
+(Source: Adapted from Docker Documentation, 2024)
+
+Figure 2 shows the Docker Swarm architecture with its two tier node structure.
+Manager nodes, comprised of Leaders and Followers, ensure cluster state consistency
+using a consensus protocol called Raft. Worker nodes receive and run containerized
+tasks that are sent via the control plane to ensure a distributed workload execution.
+
+Manager node responsibilities include acceptance of API requests, orchestration of
+cluster state, scheduling of containers to worker nodes based on resource availability
+and constraints, and maintenance of service definitions and desired state. Worker
+nodes will execute the containers, report the health status and communicate with the
+manager nodes via secure channels using the TLS protocol. The Raft consensus
+algorithm has the property of consistency among the manager nodes, it requires
+quorum (N/2 + 1) for operations in the cluster, and it supports automatic leader
+election in the event of manager failures.
+9
+
+2.2.2 Kubernetes Architecture (Comparative Context)
+Kubernetes is the king of the container orchestration world with 83% market share
+by the Cloud Native Computing Foundation's 2023 annual survey (CNCF, 2024). Its
+architecture offers more comprehensive features with more complexity of operation
+by having multiple components such as etcd for state storage, kube-apiserver for API
+operations, kube-scheduler for pod placement, and kubelet agents in worker nodes.
+
+Kubernetes provides sophisticated ways to schedule, through custom schedulers
+and priority classes, support for namespace-based multi-tenancy using resource
+quotas, a wide range of networking mechanisms using Container Network Interface
+(CNI) plugins, and sophisticated workload types such as StatefulSets, DaemonSets,
+and Jobs. However, this flexibility comes with a much higher degree of operational
+know-how compared to the integrated approach of Docker Swarm.
+
+2.2.3 Container Scheduling Algorithms
+Container scheduling algorithms are responsible for determining the best
+placement of workloads across nodes in a cluster with the goal of balancing utilization
+of resources, fault tolerance, and any application-specific constraints. Docker Swarm
+involves a two-phase scheduling process that involves filtering and scoring phases
+(Docker Inc., 2024).
+
+10
+
+Figure 3: Container Scheduling Algorithm
+(Source: Adapted from Carrión, 2022; Ahmad et al., 2022)
+
+Figure 3 shows the two phase container scheduling algorithm that Docker Swarm
+uses. Filtering phase removes the ineligible nodes based on resource availability and
+constraint requirements. The ensuing scoring phase ranks remaining candidates based
+on balance of resources, locality of images and configured affinity rules to optimize
+placement decisions.
+
+In the filtering phase, nodes that fail to meet container requirements are filtered
+out, taking into account available CPU and memory resources, node constraints
+specified via labels, taint toleration rules and image availability. Nodes that do not
+meet with minimum requirements are not considered for scheduling.
+
+The scoring phase scores eligible nodes based on weighted criteria including
+resource balance preferring nodes which have balanced CPU and memory utilization,
+11
+
+in order to avoid resource fragmentation, image locality preferring nodes which have
+the required container images already cached, reducing the latency at container startup
+time, spread preferences distributing replicas across different nodes for fault tolerance
+and affinity rules respecting user-defined co-location or anti-co-location
+requirements. The scheduler chooses the best scoring node to place the containers
+with round-robin distribution as secondary.
+
+2.3 Challenges in Reactive Fault Recovery
+2.3.1 Detection Latency and Guaranteed Downtime
+Reactive recovery systems rely on health check mechanisms to detect the failed
+containers. Docker Swarm provides the ability to implement health probes that are
+implemented via the use of the following: HTTP, TCP, Command-based health probes
+which can be configured with customizable intervals (the default value is 30 seconds)
+and customizable failure thresholds (the default value is 3 consecutive failures). This
+design comes with a built-in detection latency of 10-90 seconds based on the health
+check frequency and failure threshold configuration.
+
+Figure 4 illustrates the reactive recovery timeline of the previous Docker Swarm
+deployments. Container failure detection takes 20-40 seconds using health check
+mechanisms and is followed by the container restart process. This leads to total service
+unavailability in the range of 35-55 seconds even under the best conditions, the
+drawbacks of reactive approaches are apparent.
+
+Figure 4: Reactive Recovery Timeline
+(Source: Adapted from Yang & Kim, 2020)
+
+12
+
+As shown in Figure 2.4, the recovery process includes health check failure
+detection (10-30 seconds), scheduling decision for the container (1-2 seconds),
+container image pull if image is not cached (5-30 seconds), and container start up
+(including application initialization) (3-15 seconds), for a total of 20-80 seconds in
+good conditions. Network failures, resource exhaustion on nodes or image registry
+unavailability may mean recovery takes several minutes.
+
+Figure 5: Health Check Detection Delay
+(Source: Adapted from Yang & Kim, 2020)
+
+Figure 5 is an example of reactive system's health check detection delay. With a 10
+second health check interval and a threshold of 3 consecutive failures, the total time
+taken to detect a problem is extended to 40 seconds before a recovery can be initiated.
+This delay makes a significant contribution to overall Mean Time to Recovery.
+
+2.3.2 Resource Exhaustion Detection Gaps
+Resource exhaustion is the most common form of failure in containerized systems,
+and similar with gradual detection mechanisms are slow to detect the gradual
+degradation, before it should lead to a catastrophic failure (Tran et al., 2022).
+Container health checks are generally used to check the responsiveness of applications
+by means of an http endpoint or process existence checks, but cannot detect
+application performance slowdown due to memory pressure, throttling of cpus or
+saturation of disk I/O.
+
+13
+
+Figure 6: Resource Exhaustion Detection Gap
+
+Figure 6 shows the gap in the detection of critical resource exhaustion in reactive
+monitoring systems. This container is in a slow, steady degression from Normal
+operation condition to Degraded condition over 12 minutes, slowly getting closer and
+closer to the out of memory kill threshold. Throughout this degradation period health
+checks continue to pass, so that early intervention is not considered, and the container
+keeps progressing towards catastrophic failure.
+
+A container with a memory leak can have normal responses to health checks for
+minutes or even hours with memory consumption gradually rising to the Out-ofMemory (OOM) kill threshold. Similarly, requests can suffer from noisy neighbor
+containers causing CPU resource contention that produces a slowdown for request
+processing but passes through binary health checks. By the time health checks fail,
+the quality of the service has already deteriorated quite a bit and users have
+experienced degraded service performance.
+
+2.3.3 State Management During Failures
+Reactive recovery mechanisms are very difficult for stateful applications as
+container restarts lose in-memory state and open connections. This limitation is
+especially relevant for applications that handle user sessions, manage file uploads,
+maintain WebSocket connections or manage distributed transactions.
+14
+
+For web applications that are processing file uploads it is common to have a
+container failure in the middle of the transfer, meaning clients must restart uploads
+from scratch, wasting bandwidth and negatively impacting user experience. Similarly,
+WebSocket connections for real-time functionalities like chat application or live
+notification end suddenly during reactive recovery with the need for client-side
+reconnect logic with a possible loss of events in the disconnection window (Singh &
+Singh, 2022).
+
+Managing stateful applications is a special challenge for container orchestration
+platforms. Vayghan et al. (2021) explored availability management for stateful
+applications that are based on microservices and it was presented to the case study
+that the default platform repair actions could not be sufficient for the availability of
+the applications and they suggested an enhanced State Controller that improved the
+recovery times by 55-99% based on automatic service redirection.
+
+Database connection pools make reactive recovery even more complex. When a
+container is restarted, existing database connections become invalid, leading to
+transaction failures for in-flight requests. Applications need to put in place
+sophisticated retry logic, connection pool recovery logic, and idempotency guarantees
+to handle the sudden connection loss gracefully. Legacy applications that were not
+built for container environments do not necessarily have these kinds of resilience
+features so reactive recovery can prove especially disruptive.
+
+Session management strategies have significant effect on reactive recovery
+behavior. Applications that use in-memory session storage lose all user sessions with
+container restarts, requiring users to re-authenticate, or lose shopping carts, form data,
+and/or the progress of a workflow. While this issue is mitigated by external session
+stores (Redis, Memcached) they add other dependencies to infrastructure and
+additional latency overhead. Sticky session configurations in load balancers cause a
+
+15
+
+lack of flexibility in container placement, and can cause uneven load distribution
+across replicas.
+
+2.3.4 Impact on Service Level Agreements
+Service Level Agreements (SLAs) are used to define uptime contractual
+arrangements with 99.9% uptime allowing for 43.8 minutes of annual downtime and
+99.99% uptime allowing for only 52.6 minutes of downtime for all causes including
+planned maintenance and unexpected failures. Reactive recovery systems with Mean
+Time To Recovery MTTR from 60 to 360 seconds waste significant portions of this
+downtime budget with each failure event. For example, three container failures per
+month, each taking 180 seconds to recover, will cause 9 minutes of monthly downtime
+- which is too much for the monthly budget (approx. 4.38 minutes allowed for a
+99.99% SLA) and could lead to financial penalties or service credits based on
+customer contracts.
+
+SLA measurement methodologies add to the problems of reactive recovery. Some
+providers report availability as the percentage of successful responses to health
+checks, while some providers monitor actual rates of user-facing request success.
+Reactive recovery systems might provide a high availability from an infrastructure
+perspective (nodes up, containers running) with a user experience of service
+disruption during the 60-360 second recovery window. This difference between
+infrastructure factors and user experience reveals the inadequacy of reactive
+approaches for applications that demand genuine high availability, especially of
+financial applications and critical infrastructure systems that demand 99.999% (five
+nines) availability, with only 5.26 minutes of annual downtime.
+
+2.4 Proactive Recovery Approaches
+Fault tolerance is very crucial for high availability and reliability in cloud computing
+environments. Rehman et al. (2022) provide a comprehensive survey that deals with
+fault tolerance mechanisms. Approaches are categorized in two types: reactive
+approaches that recover systems after faults occur, and proactive approaches that predict
+16
+
+and prevent failures before they occur using techniques like preemptive migration and
+self-healing mechanisms.
+
+2.4.1 Machine Learning vs Rule-Based Approaches
+Academic research covers two types of proactive recovery methods: predictive
+failure methods using ML and the rule-based threshold systems. Dang-Quang and Yoo
+(2021) showed Bi-LSTM prediction models have 530-600 times faster prediction
+speed than ARIMA models with better resource provision accuracy and elastic
+speedup than standard LSTM approaches. Their further work (Dang-Quang & Yoo,
+2022) demonstrated that multivariate Bi-LSTM had RMSE prediction error nearly
+1.84x smaller than univariate approaches to make more accurate proactive autoscaling
+decisions.
+
+Rule-based systems use pre-defined threshold values on observable metrics to
+initiate proactive recovery actions. When the CPU usage of containers goes above
+75% for 30 consecutive seconds or memory consumption crosses 90% threshold
+values, the system triggers preventive migration before health check failures happen.
+These systems provide predictable behavior, low computation overhead (typically
+below 2% CPU), and easy troubleshooting but have a hard time handling dynamic
+patterns of workload as well as manually tuning the thresholds for different
+application profiles.
+
+Clustering techniques with proactive scheduling can enhance fault tolerance in
+scientific workflows in the cloud. Farhood et al. (2025) proposed a scheduling
+approach that combines proactive techniques with task clustering, which showed the
+improvement in the makespan, cost, energy consumption, and failure rate in a
+company as compared to reactive methods.
+
+17
+
+2.4.2 Threshold-Based Detection Systems
+Threshold-based proactive systems set tangible resource utilization limits that will
+lead to recovery actions before failures occur. It's a common industry practice to use
+resource utilization thresholds in the 80-percent range when it comes to triggering
+autoscaling policies (Park & Jeong, 2023). Park and Jeong (2023) showed that the
+best performance can be achieved with 99% improvement of elastic speedup over
+purely reactive approaches by combining 80% network throughput threshold and
+proactive deep learning-based prediction at 0.43ms of additional computational
+overhead. Memory thresholds are usually on the range between 85-95% depending
+on the application characteristics as lower thresholds are suited for applications
+suffering from memory leaks while higher thresholds are for applications with
+predictable memory consumption patterns.
+
+Figure 7: Threshold-Based Detection Challenges
+
+Figure 7 shows the dual challenges associated with static threshold-based detection
+systems. A fixed 75% CPU threshold is causing 5 false positive alerts during normal
+traffic spikes which leads to unnecessary container restarts of healthy services. On the
+other hand, the same threshold cannot detect a gradual performance degradation
+which is below 75%, leading to false negatives where the container may enter
+catastrophic failure states undetected.
+
+Some basic problems with static thresholds. Traffic spikes result in very short CPU
+spikes over thresholds but resolve themselves naturally in seconds whereas memory
+leaks are slower growing patterns that can remain below thresholds until sudden Out18
+
+of-Memory termination occurs. Multi-condition thresholds ( combining CPU and
+memory under a duration), however, reduce false positives and increase the detection
+latency and implementation complexity.
+
+Dynamic threshold adjustment adjusts according to application behavior patterns
+learned from past metrics. Toka et al. (2020) Adaptive Auto-scaling for Kubernetes:
+AI-based automatic resource adjustment using workload patterns Auto-scaling for
+applications with workload patterns that change over time is achieved by using autoscaling. However, this approach requires a certain amount of historical data and may
+not work well with unprecedented loads such as viral content surges and/or DDoS
+attacks which exceed learned patterns.
+
+Time window considerations have a major effect on the threshold effectiveness.
+Short (10-15 seconds) window time is used for fast detection but leads to sensitivity
+to transient spikes, and long (60-120 seconds) window time is used for stability but
+slows down preventive action. Industry implementations usually use 30-second
+windows as a tradeoff between responsiveness and stability, but for a particular
+application type and infrastructure capacity, these values may be better suited.
+
+2.4.3 Comparative Analysis of Proactive Techniques
+Comparing machine learning and rule-based proactive approaches, there are clear
+tradeoffs in accuracy, latency, resource overhead and operational complexity. Table 1
+summarizes the findings of academic research and industry implementation in
+multiple dimensions.
+
+Approach
+
+Detection
+
+Prediction
+
+Resource
+
+Implementation
+
+Best Use
+
+Accuracy
+
+Latency
+
+Overhead
+
+Complexity
+
+Cases
+
+ML-Based
+
+85-92%
+
+5-20 min
+
+8-15%
+
+High (training
+
+Complex
+
+Prediction
+
+(Dang-
+
+advance
+
+CPU
+
+data, model
+
+patterns,
+
+Quang &
+
+warning
+
+overhead
+
+tuning)
+
+large scale
+
+19
+
+Yoo,
+
+deployment
+
+2021)
+
+s
+
+Rule-Based 70-85%
+
+Sub-
+
+1-3%
+
+Low (threshold
+
+Predictable
+
+Thresholds
+
+(static),
+
+second
+
+CPU
+
+configuration)
+
+workloads,
+
+80-90%
+
+detection
+
+overhead
+
+resource-
+
+(dynamic
+
+constrained
+
+)
+
+environmen
+ts
+
+Hybrid
+
+88-94%
+
+1-5 min
+
+5-10%
+
+Medium (rules
+
+Mission-
+
+Approache
+
+(combine
+
+advance
+
+CPU
+
++ lightweight
+
+critical
+
+s
+
+d)
+
+warning
+
+overhead
+
+ML)
+
+systems
+requiring
+high
+accuracy
+
+Table 1: Comparative Analysis of Proactive Container Recovery Techniques:
+Trade-offs between accuracy, latency, overhead, and complexity guide selection
+based on deployment requirements.
+
+Machine learning approaches are good at recognizing complex failure patterns with
+multiple correlated failure metrics but require a lot of training data from production
+environments and complex infrastructure for model serving. Rule-based systems offer
+predictable behavior at low cost but require manual tuning of thresholds and have a
+hard time dealing with workload variations. Hybrid schemes that use simple rulebased detection for common situations with lightweight anomaly detection for
+unusual situations provide practical middle ground for production use (Carrion,
+2022).
+
+Operational maintenance requirements vary greatly from approach to approach.
+Rule-based systems need periodic review and adjustment of thresholds as the
+characteristics of applications change and usually involve quarterly reviews for stable
+workloads. Machine learning models require constant monitoring of prediction
+accuracy, periodic re-training of models with new data (monthly or quarterly) and
+validation with production outcomes to keep models from experiencing drift.
+20
+
+Organizations need to balance these operational costs that will never go away with
+the possible improvements in availability when considering proactive recovery
+strategies.
+
+2.5 Container Migration and Zero-Downtime Strategies
+2.5.1 Migration Techniques
+Checkpoint/Restore In Userspace (CRIU) is a library that allows for true live
+migration by serializing full process state including memory pages, open file
+descriptors, network connections and pending signals. Guitart (2024) achieve 800ms
+migration times for stateful containerized applications using optimized CRIU precopy memory transfer, where frequently modified memory pages are transferred
+iteratively before final state snapshot. This approach allows active TCP connections,
+in-progress file I/O operations and application memory state to be preserved without
+the interruption of service.
+
+However, CRIU has many strict requirement for its operation: Linux 3.11+ with
+checkpoint/restore system calls, root privileges to manipulate memory and control
+processes, application compatibility without incompatible operations such as external
+shared memory or some security modules. CRIU has serious limitations in
+compatibility for production environment. Andrijauskas et al. (2024) has found that
+CRIU cannot checkpoint containerized workloads when invoked externally, does not
+support GPU at all and requires identical versions of the libraries between source and
+destination systems. These limitations implicitly prohibit CRIU adoption for
+applications that have GPU dependencies, use nested container architectures, or
+require cross-platform migration, requiring alternative methods such as checkpointing
+at the application level.
+
+21
+
+Figure 8: Container Migration Strategies
+(Source: Adapted from Tran et al., 2022)
+
+Figure 8 is a comparison of the stateless and stateful approaches of container
+migration. Stateless migration initiates a new container instance and adjusts the
+routing rules and clears the existing connections from the old container and completes
+the process in 5-10 seconds. Stateful migration with CRIU is required to checkpoint
+state of a process, transfer process checkpoint images to the target node, sync storage
+volumes and restore container, which requires 5-130 seconds depending on storage
+size and the network bandwidth.
+
+Docker swarm has a rolling update mechanism that provides operational simplicity
+sacrificing state preservation. The --update-order start-first setting will launch
+replacement containers before it kills originals, again allowing for a short overlap in
+which both versions can serve requests. The ingress routing mesh gradually redirects
+traffic to new containers and kills off old connections over configurable timeouts
+(default 10 seconds). This stateless approach makes external session storage or session
+loss on updates a requirement for applications.
+
+22
+
+CRIU provides 800ms downtime with full state preservation but requires kernel
+support and root access whereas rolling updates provide 5-10 seconds connection
+draining with partial availability but do not require special privileges and can be used
+with any containerized application. For the rolling update environment that
+SwarmGuard is deployed in, it is the best tradeoff between simplicity of operations
+and acceptable overhead of migration for stateless microservices.
+
+2.5.2 CRIU vs Rolling Update Comparison
+Connection draining enables graceful migration without letting terminating
+containers hold additional requests, and allows in-flight requests to finish. Docker
+Swarm does its implementation using the ingress routing mesh, which identifies
+"draining" containers by listening for the SIGTERM signal and ceases to route new
+connections while monitoring active connections. The configurable stop grace period
+(default 10 seconds) dictates maximum wait time for connections to naturally
+complete before being forcefully terminated.
+
+Session persistence strategies: When an application is migrating, session
+persistence strategies define the application behavior. Sticky sessions set up in load
+balancers attach user sessions to certain container instances to make application
+development easier, but migration is complicated as all sessions end when a container
+goes down. Stateless session management with JWT tokens or external session stores
+(Redis, Memcached) allows for transparent migration as new containers have access
+to the same session information, at the cost of dependencies on infrastructure and
+potential consistency issues.
+
+There is more complexity with the keep-alive connections using the http protocol.
+Long-lived connections for server-sent events or streaming responses may outlive
+stop grace periods, so application-level work is needed to ensure that connections can
+be gracefully closed when termination signals are received. Modern frameworks have
+lifecycle hooks in which applications can broadcast shutdown notifications to the
+clients which can be utilized to connect gracefully to other container instances.
+23
+
+Best practices for graceful shutdown are including registering handler for
+SIGTNERM as a means to initiate shutdown sequence, not accepting new requests
+but continuing processing active requests, closing idle keep-alive connections and
+retaining active request connections, flushing pending writes to databases or message
+queues, and sending final health check responses, which indicate unavailability.
+Implementation of these practices minimizes user-visible disruption for proactive
+migration, but applications that have not been designed for container environments
+may not have necessary shutdown logic.
+
+2.5.3 Connection Draining and Session Management
+Connection draining enables graceful migration without letting terminating
+containers hold additional requests, and allows in-flight requests to finish. Docker
+Swarm uses connection draining via the ingress routing mesh, where containers are
+marked as "draining" when they are sent a SIGTERM signal and the system stops
+routing new connections and monitors the count of active connections. The
+configurable stop grace period (default 10 seconds) dictates maximum wait time for
+connections to naturally complete before being forcefully terminated.
+
+When an application is migrating, session persistence strategies define the
+application behavior. Sticky sessions set up in load balancers attach user sessions to
+certain container instances to make application development easier, but migration is
+complicated as all sessions end when a container goes down. Stateless session
+management with JWT tokens or external session stores (Redis, Memcached) allows
+for transparent migration as new containers have access to the same session
+information, at the cost of dependencies on infrastructure and potential consistency
+issues.
+
+Keep-alive connections on the http assume other migration complexity. Long-lived
+connections for activities such as server-sent events or streaming responses can have
+stop grace periods that may be longer than the application needs to gracefully
+24
+
+terminate connections on receipt of termination signals. Modern frameworks have
+lifecycle hooks in which applications can broadcast shutdown notifications to the
+clients which can be utilized to connect gracefully to other container instances.
+
+2.6 Monitoring Infrastructure
+Modern observability platforms such as Datadog and New Relic provide full-stack
+monitoring capabilities for containerized environments, albeit with very different
+feature sets and pricing (Better Stack, 2025).
+
+2.6.1 Push vs Pull Monitoring Models
+Container monitoring architectures have two main data collection models. Pullbased systems (represented by Prometheus) periodically pull measurements from their
+metrics endpoints at configured intervals (typically 15-60 seconds), while push-based
+systems (InfluxDB with InfluxDB agents) have monitoring agents actively pushing
+measurements to central collection infrastructure at typical sub-second intervals. The
+architectural decision has a fundamental effect on the proactive recovery capabilities,
+in pull-based monitoring there is inherent latency between metrics generation and
+central visibility, while push-based systems offer near real-time monitoring of metrics.
+
+Figure 9 shows architectural differences between push and pull models. Pull-based
+monitoring assigns responsibility to the central server to discover the targets and begin
+collecting the metrics, which simplifies agent deployment, but necessitates service
+discovery mechanisms and network accessibility from the monitoring server to all the
+targets. Push-based monitoring reverses this relationship, with agents establishing
+connections to central infrastructure, supporting NAT traversal and firewall-restricted
+environments while demanding agent installation and configuration to each monitored
+node.
+
+Push and pull monitoring architectures are compared in figure 9. The push model
+(left) uses agents that actively send metrics using an HTTP post to a central database
+25
+
+that can deliver metrics in real time with sub-second latencies. The pull model (right)
+has a central server that periodically retrieves metrics endpoints using the robust
+protocol (HTTP GET), which eliminates the complexity of agent deployment at the
+expense of longer polling times.
+
+Figure 9: Push vs Pull Monitoring Architecture Comparison
+(Source: Adapted from InfluxData, 2024)
+
+For proactive recovery systems where the need is to detect the exhaustion of
+resources quickly, push-based monitoring has huge advantages. InfluxDB agents are
+able to provide metrics at one-second intervals or more, which can identify a sudden
+spike in CPU or memory growth within seconds of their occurrence. Pull-based
+Prometheus systems running with 15-30 seconds scrape intervals may not be able to
+detect transient resource spikes that happen between scrape intervals, limiting the
+accuracy of detecting short-lived failure conditions.
+
+26
+
+2.6.2 Time-Series Databases for Metrics Storage
+Time-series databases are optimized for metric storage patterns with sequential
+writes with a timestamp, time range queries for visualization and analysis, and high
+ingestion rates from distributed sources. InfluxDB uses a Time-Structured Merge
+(TSM) tree engine with 250,000+ writes/second on commodity hardware using
+batching and compression (InfluxData, 2024). The schema-less tag-based data model
+supports flexible data metric dimensions with no predefined schemas to support
+dynamic container environments where services and instances come and go
+frequently.
+
+Storage architecture in time series databases is balanced between the
+considerations of write throughput, query performance and data retention. InfluxDB
+creates data shards that represent time shards (ex. 1 hour or 1 day) so that older shards
+are compacted to save space and the data is kept write optimized for recent data.
+Retention policies automatically remove expired data according to age, avoiding
+unlimited storage size increases while retaining recent history for operational queries
+and long-term trends for capacity planning.
+
+Query optimization techniques that are specific to time series data include:
+continuous queries for pre-aggregating common calculations (hourly averages, daily
+maximums), down sampling to decrease the data resolution for older time periods
+while keeping recent high-resolution data, and indexing on tag dimensions to speed
+filtering on the container ID, service name, or node hostname. These optimizations
+allow for responsive queries in the dashboard across millions of metric points without
+being a burden on the database resources.
+
+2.6.3 Real-Time Visualization with Grafana
+Grafana offers real-time visualization of time series metrics via dashboards of
+graphs, gauges, tables and alert indicators. For container monitoring, common
+dashboards have a list of CPU and memory utilization of containers over time,
+network I/O bandwidth usage metrics, health check success rate and failure count
+27
+
+metrics, container restart events timeline, and cluster-wide resource allocation
+metrics. Template variables as this allows single dashboard designs to display metrics
+for multiple services, nodes or environments, using dropdowns.
+
+Alert configuration in Grafana identifies situations when teams that handle
+operations should be alerted. For proactive monitoring, alert rules check if the CPU
+usage of containers is above 80% for 30 consecutive seconds, if the memory
+consumption crosses the threshold of 90%, if the health check failure rate is above
+threshold of 10% in 5 minutes window, or if the count of container restart exceeds
+expected container restart count. Notification channels are used to provide email,
+Slack, PagerDuty or webhook integrations that allow automated response systems to
+trigger recovery actions.
+
+Query optimization for real-time dashboards involves finding the right balance of
+data freshness and system load. Auto-Refresh interval of 5-10 seconds would give
+near-real time visibility without overloading time-series databases and dashboard time
+ranges should be limited to recent hours or days to limit the scope of queries. Proper
+use of aggregation functions (moving averages, rate calculations), Reduces the
+number of data points displayed without losing the visibility of trend, making the
+dashboard more responsive and easier to interpret.
+
+2.7 Auto-Scaling Mechanisms
+2.7.1 Horizontal vs Vertical Scaling
+Container auto-scaling solves capacity issues in either horizontal (adding replica
+containers) or vertical (increasing the resource limits for existing containers) ways.
+Horizontal scaling, involves distribution of load to multiple and identical container
+instances behind a load balancer, Linear Scalability, Fault Tolerance (load balancer
+provides redundancy), Zero Downtime Scaling Operations. Vertical Scaling In
+Vertical scaling exists the option to increase the CPU and memory limit for already
+running containers, which can be a simple way to scale up single instance
+28
+
+applications, but will necessitate both container restart, and limited headroom for
+scaling operations constrained by the node resources.
+
+Figure 10: Horizontal vs Vertical Scaling Comparison
+(Source: Adapted from Kubernetes Documentation, 2024)
+
+A comparison of horizontal and vertical scaling strategies for containerized
+applications is shown in Figure 10. Horizontal Scaling (Left), replica instances are
+spread across nodes (by means of a load balancer) Horizontal scaling adds fault
+tolerance and theoretically unlimited scalability. Vertical scaling (right) scales up the
+resource allocation (CPU, memory) to running container instances, which is easier to
+implement, but has scaling limitations imposed by the hardware.
+
+2.7.2 Cooldown Periods and Oscillation Prevention
+Auto-scaling systems must avoid oscillation: A quick scale-up followed by scaledown in response to transient load spikes is wasteful and destabilizes services (Dogani
+et al., 2023). Cooldown periods enforce minimum intervals between scaling actions;
+29
+
+this could normally be 60-300 seconds between actions, based on application startup
+time and the volatility of the load pattern. During cooldown, the system will monitor
+the metrics, but it will not make immediate scaling decisions even if thresholds are
+exceeded, to give newly created containers time to initialize and share the load before
+deciding if additional scaling is needed.
+
+Hysteresis in scaling thresholds makes there are different trigger points for scaleup versus scale-down actions. For example, CPU utilization more than 80% may
+trigger scale-up and scale-down requires CPU to be lower than 40% for 5 minutes.
+This asymmetry keeps us away from fast oscillations on either side of the threshold
+boundaries where short metric fluctuations will make continuous scaling actions. The
+difference between scale-up and scale-down thresholds (in the example 40%
+difference) should be larger than normal workload variation to be sure that the
+workload is operated stably.
+
+2.8 Network-Aware Failure Classification
+2.8.1 Context-Aware Recovery Decisions
+A critical issue in proactive recovery is that it can be hard to tell apart containerspecific issues that need to be migrated and legitimate traffic surges that need to be
+scaled. Both situations involve high CPU utilization; however, responses are
+fundamentally different, migration means moving containers under stress to
+underutilized nodes, while scaling refers to augmenting capacity to meet higher
+demand. Incorrect classification results in unnecessary migrations during traffic peaks
+(wasting resources and potentially destabilizing clusters) or unsuccessful scaling
+attempts in the case of underlying problems being container-specific resource
+exhaustion.
+
+Figure 11 shows SwarmGuard's network-aware classification approach, where
+network traffic metrics are used as a discriminating factor. High CPU (greater than
+80%) and high network traffic would be indicative of legitimate processing of requests
+30
+
+(Scenario 2: Traffic Load requiring scaling), whereas high CPU and low network
+activity would indicate computational stress (i.e., high CPU usage and low network
+traffic) associated with inefficient algorithms, background processing or resource
+contention (Scenario 1: Container Stress requiring migration).
+
+The network-aware mechanism of classifying the scenarios of failures. The system
+correlates between CPU utilization and network I/O metrics in order to distinguish
+between traffic load situations (high CPU and high network activity) and resource
+exhaustion situations (high CPU and low network activity) in order to make contextaware recovery decisions.
+
+Figure 11: Network-Aware Scenario Classification
+
+The context-aware decision flow shown in Figure 11 is used to map classified
+scenarios to best recovery actions with sub-second latency. When Scenario 1
+(container stress) is detected, constraint-based migration is triggered by SwarmGuard
+using Docker Swarm's rolling update mechanism. When Scenario 2 (traffic surge) is
+detected, SwarmGuard makes a horizontal scaling by incrementing service replica
+count. This differentiation helps to avoid common pitfalls where generic autoscaling
+31
+
+systems wastefully add more replicas to deal with problems that are container level,
+or inappropriately migrate containers experiencing legitimate increases in traffic.
+
+A context-aware decision flow for mapping classified scenarios to optimal
+recovery actions is shown in Figure 12. The decision engine analyzes the
+classification of the scenario and chooses the suitable strategy for recovery, container
+migration for node-specific problems, horizontal scaling for cluster-wide surges in
+traffic, with decision latency of sub-seconds.
+
+Figure 12: Context-Aware Decision Flow
+
+2.8.2 Multi-Metric Correlation Analysis
+Multi-metric correlation identifies causal relationships between resource metrics
+that are not indicated by single-metric monitoring. High CPU usage coupled with high
+network throughput generally means processing legitimate traffic, where application
+servers are using the CPU cycles processing an incoming volume of requests from the
+user-space (via an appropriate web server), queries to the database server, or API calls.
+32
+
+On the other hand, high CPU with low network activity indicates topics of
+computation stress due to batch processing that runs in the background, inefficient
+algorithm processing, or CPU-intensive work that does not pertain to user requests
+(Wang et al., 2025).
+
+Similarly, memory growth was correlated with request count patterns pointing to
+normal caching behavior or session accumulation while uncorrelated memory growth
+may be a symptom of memory leaks that require container restart. Disk I/O patterns
+that are correlated with volume of database queries provide a good indication of
+expected behavior, but elevated disk I/O without corresponding activity from the
+applications is a clue to the log file growth, temporary file accumulation, or systemlevel disk contention from other processes.
+
+Correlation analysis techniques use statistical measures such as Pearson correlation
+coefficients computed over sliding periods of time (usually 5-15 minutes) as a way of
+quantifying the relationships between metrics. Correlation values above 0.7 would
+indicate positive relationships of strong strength suggesting causal connection, and
+values below 0.3 would suggest independent variation to be interpreted differently.
+Time-lag analysis takes into account delayed effects, such as memory allocation
+seconds following request peaks, or CPU throttling several minutes after thermal
+events.
+
+Implementation challenges include the determination of proper timeframes for
+correlation calculation (trading responsiveness with statistical significance), missing
+data in the case of failure to collect metrics intermittently, and interpretation of
+correlation in the case of fast-changing workload conditions where relationships
+change over the course of minutes. Production systems usually combine the
+correlation analysis with domain-specific rules of the expected behavior of the
+application instead of relying only on statistical measures.
+
+33
+
+2.9 Related Work and Comparative Analysis
+This section places SwarmGuard in the context of existing research into proactive
+container recovery, fault tolerance and orchestration reliability. While reactive recovery
+mechanisms have been thoroughly documented (Casalicchio & Iannucci, 2020;
+Rehman et al., 2022), proactive policies to avoid failures before they happen, continue
+to be a subject of study. Table 2 summarizes in a systematic way 10 recent research
+studies (2020-2025) representing current research directions in machine learning-based
+failure prediction, container migration techniques, autoscaling approaches and selfhealing systems.
+
+Recent developments in deep learning have enabled the improvement of anomaly
+detection accuracy in the cloud environment. Ahmed et al. (2025) used a comparative
+study of RNN, CNN and LSTM architectures to detect intrusion and investigated that
+LSTM architectures performed better in detecting complex attack on containerized
+cloud infrastructures.
+
+No.
+
+Author(s)
+
+Problem
+
+& Year
+1
+
+Methods/Tools/
+
+Solution/
+
+Relevance to
+
+Algorithm
+
+Results
+
+SwarmGuard
+
+Tran et al.
+
+Kubernetes
+
+Proactive fault
+
+Achieved
+
+SwarmGuard
+
+(2022)
+
+containeriz
+
+detection using
+
+proactive
+
+targets Docker
+
+ed services
+
+resource
+
+fault
+
+Swarm (vs
+
+lack
+
+monitoring;
+
+tolerance
+
+Kubernetes); uses
+
+proactive
+
+stateful container with
+
+stateless
+
+stateful
+
+migration in
+
+reduced
+
+migration for
+
+fault
+
+Kubernetes
+
+downtime; broader
+
+tolerance
+
+demonstra
+
+compatibility;
+
+mechanism
+
+ted
+
+similar proactive
+
+s
+
+feasibility
+
+monitoring
+
+of stateful
+
+approach but
+
+migration
+
+simpler thresholdbased detection
+
+34
+
+2
+
+Soussi et
+
+Container
+
+Survey of CRIU- Classified
+
+SwarmGuard
+
+al. (2024)
+
+live
+
+based live
+
+migration
+
+avoids CRIU
+
+migration
+
+migration,
+
+approache
+
+complexity by
+
+techniques
+
+checkpoint/restor s: true live
+
+using Docker
+
+are
+
+e techniques, and migration
+
+Swarm's native
+
+complex
+
+connection-
+
+(<1s
+
+rolling update
+
+and lack
+
+persistent
+
+downtime) mechanism;
+
+comprehens migration
+
+requires
+
+achieves practical
+
+ive
+
+complex
+
+zero-downtime
+
+practical
+
+kernel
+
+(0.6s avg) with
+
+approaches
+
+integration broader
+
+survey
+
+;
+
+compatibility and
+
+identified
+
+simpler
+
+democrati
+
+implementation
+
+zation
+barriers
+3
+
+Carrión
+
+Kubernetes
+
+Taxonomy of
+
+Identified
+
+SwarmGuard
+
+(2022)
+
+scheduling
+
+scheduling
+
+gaps in
+
+implements
+
+faces
+
+algorithms;
+
+scheduling proactive
+
+challenges
+
+analysis of
+
+for fault
+
+scheduling
+
+in resource
+
+default scheduler
+
+tolerance;
+
+through
+
+allocation,
+
+limitations and
+
+highlighte
+
+constraint-based
+
+pod
+
+custom scheduler d need for
+
+node selection;
+
+placement,
+
+approaches
+
+targets Docker
+
+proactive
+
+and
+
+scheduling Swarm's simpler
+
+performanc
+
+strategies
+
+scheduler versus
+
+e
+
+Kubernetes'
+
+optimizatio
+
+complex
+
+n
+
+scheduling
+framework
+
+4
+
+Dang-
+
+Kubernetes
+
+Bidirectional
+
+Achieved
+
+SwarmGuard uses
+
+Quang &
+
+autoscaling
+
+LSTM deep
+
+15-20%
+
+threshold-based
+
+lacks
+
+learning model
+
+better
+
+scaling for
+
+35
+
+Yoo
+
+predictive
+
+trained on
+
+resource
+
+immediate
+
+(2021)
+
+capabilities
+
+historical
+
+utilization
+
+deployment
+
+for
+
+resource usage
+
+vs reactive without training
+
+proactive
+
+patterns
+
+HPA;
+
+data; trades ML
+
+resource
+
+predicted
+
+prediction
+
+provisionin
+
+scaling
+
+accuracy for
+
+g
+
+needs 2-5
+
+transparency and
+
+minutes in
+
+minimal overhead
+
+advance
+
+(<5% CPU vs 1015% for DL
+models)
+
+5
+
+Di et al.
+
+Container
+
+High-
+
+Reduced
+
+SwarmGuard
+
+(2021)
+
+migration
+
+performance
+
+migration
+
+achieves faster
+
+in
+
+migration tool
+
+time to 8-
+
+migration (0.6s
+
+workflows
+
+optimizing
+
+12
+
+avg) through
+
+causes
+
+memory transfer
+
+seconds;
+
+rolling updates
+
+service
+
+and minimizing
+
+maintaine
+
+rather than
+
+disruption
+
+checkpoint
+
+d
+
+checkpoint/restor
+
+and long
+
+overhead
+
+workflow
+
+e; optimized for
+
+migration
+
+continuity
+
+stateless
+
+times
+
+during
+
+containers in
+
+migration
+
+Docker Swarm
+versus workflowspecific tools
+
+6
+
+Farhood
+
+Scientific
+
+Proactive fault
+
+Improved
+
+SwarmGuard
+
+et al.
+
+workflows
+
+detection
+
+workflow
+
+focuses on
+
+(2025)
+
+in cloud
+
+combined with
+
+completio
+
+containerized
+
+require
+
+task clustering
+
+n rates and microservices vs
+
+fault-
+
+for correlated
+
+reduced
+
+scientific
+
+tolerant
+
+failure
+
+makespan
+
+workflows; uses
+
+scheduling
+
+prevention
+
+through
+
+similar proactive
+
+proactive
+
+detection but
+
+with
+proactive
+
+targets real-time
+36
+
+and
+
+task
+
+services rather
+
+clustering
+
+migration
+
+than batch
+
+techniques
+7
+
+processing
+
+Dogani et
+
+Container
+
+Survey of
+
+Classified
+
+SwarmGuard
+
+al. (2023)
+
+autoscaling
+
+autoscaling
+
+autoscalin
+
+implements
+
+techniques
+
+approaches:
+
+g
+
+proactive
+
+lack
+
+reactive,
+
+techniques autoscaling for
+
+comprehens proactive,
+
+;
+
+Docker Swarm;
+
+ive
+
+hybrid;
+
+identified
+
+addresses
+
+taxonomy
+
+comparison
+
+research
+
+identified gap in
+
+and
+
+across edge, fog,
+
+gaps in
+
+lightweight
+
+comparativ
+
+and cloud
+
+proactive
+
+orchestrators;
+
+e
+
+approache
+
+focuses on
+
+assessment
+
+s for
+
+resource-
+
+across
+
+edge/fog
+
+constrained
+
+platforms
+
+computing environments
+emphasized in
+survey
+
+8
+
+Vayghan
+
+Kubernetes
+
+Custom
+
+Improved
+
+SwarmGuard uses
+
+et al.
+
+lacks
+
+Kubernetes
+
+availabilit
+
+external
+
+(2021)
+
+mechanism
+
+controller
+
+y
+
+monitoring vs
+
+s for
+
+implementing
+
+manageme Kubernetes
+
+managing
+
+availability
+
+nt for
+
+controller
+
+availability
+
+management
+
+stateful
+
+approach; focuses
+
+of elastic
+
+logic for stateful
+
+microservi on stateless
+
+microservic
+
+services
+
+ces;
+
+services for
+
+e-based
+
+demonstra
+
+migration
+
+stateful
+
+ted
+
+simplicity;
+
+applications
+
+controller-
+
+Docker Swarm
+
+based
+
+lacks native
+
+extensibili
+
+controller
+
+ty
+
+extensibility
+
+37
+
+9
+
+10
+
+Guitart
+
+HPC cloud
+
+Modified CRIU
+
+Achieved
+
+SwarmGuard
+
+(2024)
+
+environmen
+
+approach with
+
+<500ms
+
+targets standard
+
+ts need
+
+iterative memory
+
+downtime
+
+containerized
+
+practical
+
+transfer and TCP
+
+with
+
+services vs HPC
+
+live
+
+connection
+
+maintaine
+
+workloads; uses
+
+container
+
+preservation
+
+d
+
+rolling updates
+
+migration
+
+connectio
+
+for zero-
+
+that is
+
+ns;
+
+downtime without
+
+diskless,
+
+demonstra
+
+CRIU's kernel
+
+iterative,
+
+ted
+
+complexity; 0.6s
+
+and
+
+practicalit
+
+migration
+
+connection-
+
+y in HPC
+
+competitive with
+
+persistent
+
+scenarios
+
+CRIU approaches
+
+Toka et al. Kubernetes
+
+Reinforcement
+
+Improved
+
+SwarmGuard uses
+
+(2020)
+
+autoscaling
+
+learning-based
+
+resource
+
+rule-based scaling
+
+needs
+
+autoscaling
+
+efficiency
+
+for transparency
+
+adaptive
+
+adapting to
+
+through
+
+and immediate
+
+AI-based
+
+changing
+
+AI-driven
+
+deployment;
+
+mechanism
+
+workload
+
+scaling
+
+trades AI
+
+s for
+
+patterns
+
+decisions;
+
+adaptability for
+
+dynamic
+
+demonstra
+
+operational
+
+resource
+
+ted
+
+simplicity and
+
+allocation
+
+adaptabilit
+
+zero ML
+
+y to
+
+infrastructure
+
+pattern
+
+requirements
+
+changes
+Table 2: Comparative Analysis of Related Research on Proactive Container
+Recovery and Fault Tolerance
+
+2.9.1 SwarmGuard's Differentiation from Existing Research
+The comparative analysis in Table 2 shows some significant gaps that SwarmGuard
+covers. Academic research focuses mostly on Kubernetes environments (Tran et al.,
+2022; Carreno et al., 2022; Dang-Quang and Yoo, 2021; Vayghan et al., 2021; Toka
+38
+
+et al., 2020) leaving aside the Docker Swarm ecosystem serving millions of SME
+deployments. SwarmGuard addresses this underserved platform specifically and
+offers proactive recovery capabilities without having to incur the operational
+complexity of Kubernetes.
+
+Due to the recent research, machine learning approaches to failure prediction are
+becoming more common. Dang-Quang and Yoo (2021) use bidirectional LSTM
+networks that are 530-600 times faster for predicting than ARIMA models, while
+keeping the accuracy of resource provision superior, and Toka et al. (2020) use
+reinforcement learning for adaptive scaling. However, these ML-based systems
+require a lot of training data (6 + months), computational resources (10-15% CPU
+overhead), and cannot be interpreted. SwarmGuard has made a deliberate decision to
+use threshold-based detection (at the expense of ML's ability to recognize patterns)
+because it offers immediate deployment, transparent decision-making and low
+resource overhead (less than 5% CPU).
+
+Live container migration research is on CRIU techniques. Soussi et al. (2024) note
+that, in order to achieve true stateful migration with less than 1 second downtime,
+complex integration in the kernel is necessary. Guitart (2024) show 500ms migration
+times while Di et al. (2021) show 30% less migration time compared to sequential
+migration with their use of a multicontainer migration strategy. SwarmGuard is
+avoiding these complications by using the native rolling update mechanism of Docker
+Swarm with competitive migration (0.6 seconds average) without kernel changes.
+
+SwarmGuard makes a contribution by its context-aware classification, which
+differentiates between container-specific issues that need to be scaled out and
+legitimate traffic surges that need to be scaled up. By adding network traffic
+information to CPU and memory monitoring, SwarmGuard's decision engine
+computes whether resource consumption is due to application load (leading to
+horizontal scaling action), or the deterioration of a container (leading to migration
+
+39
+
+action) to avoid inappropriate recovery actions typical for generic auto-scaling
+frameworks (Dogani et al., 2023).
+
+2.10 Summary and Research Gap Identification
+This literature review covered the work that has been done for container
+orchestration, fault tolerance mechanisms, proactive recovery approaches, migration
+techniques, monitoring architectures and autoscaling systems. Container orchestration
+platforms have been widely adopted with Kubernetes leading the market (83% market
+share) but Docker Swarm still holds significant market share (10% adoption) among
+SMEs (who prefer operational simplicity).
+
+There are four critical gaps that SwarmGuard addresses in a literature review. First,
+Docker Swarm Proactive Recovery Gap: a lot of research in Kubernetes but lack of
+Docker Swarm work despite huge SME adoption. Second, Context-Aware Decision
+Gap: existing systems have generic responses to failures without distinguishing the
+types of failures. Third, Zero-Downtime Migration Gap: Due to the academic focus on
+complex CRIU approaches, the practical focus on Docker Swarm constraint-based
+scheduling remains under-explored. Fourth, SME-Focused Solutions Gap: research
+focuses on large scale resource-rich environments and resource-constrained situations
+are understudied.
+
+SwarmGuard solves such gaps with proactive monitoring specifically for Docker
+Swarm, context-aware classification based on network metrics, zero-downtime
+migration based on rolling update with constraint-based placement and networkoptimized design verified on resource constrained infrastructure (less than 0.5Mbps
+overhead, less than 5% CPU).
+
+40
+
+CHAPTER 3
+
+RESEARCH METHODOLOGY
+3.1 Introduction
+This chapter explains the research methodology, system design, implementation
+approach and validation strategy used in the development and validation of
+SwarmGuard. The methodology combines systematic software engineering practices
+while providing empirical experimental validation to ensure systematic software meets
+functional objectives while demonstrating measurable improvements compared to
+reactive recovery baselines.
+
+The research takes an iterative development model that involves requirements
+analysis, architectural design, incremental implementation and comprehensive testing
+cycles. This approach turns out to be suitable for SwarmGuard development as the
+aspects of optimal threshold values, recovery logic and integration patterns demand
+empirical validation through controlled failure injection instead of being determined
+theoretically.
+
+The chapter has been divided into five parts: Section 3.2 provides system architecture
+and design, Section 3.3 gives the requirements and specification, Section 3.4 covers
+development and implementation, Section 3.5 deals with testing and validation
+approach. Together, these sections serve as full documentation that allow for
+reproducibility and informed assessment of SwarmGuard's contributions.
+
+41
+
+3.2 System Architecture and Design
+3.2.1 Overall System Architecture
+SwarmGuard's architecture consists of 4 integrated subsystems: Monitoring Layer
+for collecting container metrics, Decision Layer for threshold evaluation and failure
+classification, Execution Layer for recovery actions through Docker Swarm API, and
+the Knowledge Layer for historical data and system state. Complete system
+architecture with component interactions and data flows is shown in figure 13.
+
+Figure 13: SwarmGuard System Architecture
+
+Figure 13 shows the full architecture of the SwarmGuard system divided into 4
+integrated layers. The monitoring layer consists of Python agents and InfluxDB to
+collect and store the metrics. The decision layer consists of a python Flask recovery
+manager for smart failure classification. The execution layer in turn interfaces with
+the Docker Swarm API for automatic recovery actions. The observability layer gives
+Grafana dashboards for real-time visualization. This event-driven architecture allows
+the monitoring agents to detect the violation of thresholds and to send the alerts to the
+recovery manager through the http protocol, which then performs the right recovery
+actions using the Docker API.
+
+42
+
+The Monitoring Layer uses custom python agents running as Docker Swarm
+services (one for each worker node) that gather CPU percentage, memory percentage
+and network I/O metrics from co-located containers at 3-5 seconds intervals using
+Docker's Stats API. When threshold violations are detected (CPU at >75% or Memory
+at >80% for 2 consecutive times), agents instantly send out the alerts on the post of
+http to the Recovery Manager, providing sub-second alert latency.
+
+The Decision Layer is used to implement the real-time evaluation of the threshold
+using the Python monitoring agents that monitor the stream of metrics for violation
+patterns. Multi-dimensional threshold logic is used for evaluation CPU > 75% AND
+consecutive breaches >= 2 for transient spike filtering and sustained degradation
+detection. Network traffic correlation differentiates between container stress (high
+CPU, low network) and traffic surge (high CPU, high network), making it possible to
+classify events on context with average alert generation time of 7-9 milliseconds.
+
+The Execution Layer: This Layer interacts with Docker Swarm using Python SDK
+API.
+
+Execute
+
+constraint-based
+
+update_config={'order':
+
+migration
+
+(service.update(constraints,
+
+'start-first'})).
+
+Execute horizontal scaling
+
+(service.scale(replica_count)). The layer has cooldown state to prevent
+oscillation by minimum cooldown delays: 60 sec after scale-up and 180 sec after
+scale-down.
+
+3.2.2 Proactive Recovery Workflow
+SwarmGuard's proactive recovery has five sequential phases as shown in Figure
+14. Monitoring Phase is used for gathering real-time metrics using distributed Python
+agents on each worker node. Analysis Phase examines local threshold conditions of
+the monitoring agents, finding stable violations (2+ consecutive intervals).
+Classification Phase involves network-aware decision logic separating container
+stress (network < 35Mbps) that requires migration from traffic surge (network >
+65Mbps) that requires scaling.
+43
+
+Planning Phase Chooses appropriate recovery strategies and monitors cooldown
+periods. Execution Phase executes planned actions using the Docker Swarm API
+using Python Docker SDK and saves results in the InfluxDB to perform analysis.
+Average end-to-end latency from metric collection to recovery initiation is 7-15
+seconds based on threshold breach duration requirements.
+
+Figure 14: Proactive Recovery Workflow
+
+44
+
+Figure 14 describes the proactive recovery process in five phases. The Monitor
+phase is the phase of continuous metric collection from container instances. The
+Analyze phase is used to evaluate metrics against set thresholds to identify anomalies.
+The Classify phase uses network-aware logic to classify the type of failure scenario.
+The Plan phase determines the best recovery strategy from the results of classification.
+Finally, the Execution phase invokes the selected recovery action using Docker
+Swarm API calls. End-to-end delay time from the beginning of any metric collection
+and the start of recovery initiation averages 7-15 seconds based on the threshold
+breach duration requirements.
+
+3.2.3 Network-Aware Failure Classification
+A key innovation in SwarmGuard is network traffic correlation to differentiate the
+type of failure. Traditional threshold based systems use single metric or dual metric
+evaluation (CPU alone) or dual metric evaluation (CPU and memory) without
+differentiating the failure causes. High CPU usage can be indicative of containerspecific issues (resource leaks, inefficient algorithms) that need to be addressed via
+migration, or legitimate increases in traffic that need to be handled via scaling.
+
+SwarmGuard brings the network I/O as discriminating factor. High CPU (>80%)
+along with high network traffic (>65 Mbps) - This is an indication of legitimate load
+which requires capacity expansion through more replicas (Scenario 2). High CPU
+with low network traffic (<10 Mbps) indicates container specific problems that need
+to be migrated to healthy infrastructure (Scenario 1). Intermediate network traffic (3565% of capacity or 35-65 Mbps on 100Mbps networks) creates a dead zone in
+classification where high resource usage does NOT cause automatic recovery. The
+monitoring agent does not raise alerts for this range, because the system cannot be
+sure whether the problem is a migration or scaling problem.
+
+3.2.4 Zero-Downtime Migration Strategy
+SwarmGuard performs zero downtime migration using Docker Swarm's native
+rolling update mechanism instead of complicated CRIU Kernel integration. The
+45
+
+approach utilizes the constraint-based placement where new replicas are sent to the
+healthy nodes using the start-first ordering to ensure that new containers are
+operational before the old containers will terminate.
+
+The migration workflow has seven steps, namely: query InfluxDB for healthy
+target node (CPU < 60%, memory < 70%), add temp placement constraint
+(node.id==target_node_id), service update with start-first ordering, Docker
+Swarm creates new replica on target node, health checks verify new replica readiness,
+load balancer adds new replica to routing pool, old replica receives SIGTERM and
+drains connections during 30 second grace period before terminating. Finally,
+SwarmGuard also eliminates temporary placement constraint and allows scheduling
+to return to normal flexibility.
+
+3.3 Requirements Analysis
+3.3.1 Functional Requirements
+Table 3 shows the functional requirements that SwarmGuard has for addressing the
+issues of monitoring capability, detection sensitivity, recovery actions, and
+configuration management. Requirements include collecting metrics at ≤ 15 second
+intervals (FR-1), detecting violation of the threshold in 10 seconds (FR-2),
+classification of the scenarios using network aware correlation (FR-3), executing a
+zero downtime migration for Scenario 1 (FR-4), and horizontal scaling for Scenario
+2 (FR-5).
+
+Additional requirements enforce cooldown periods asymmetrically to prevent
+oscillation (FR-6), buildup of all monitoring data and decisions for analysis (FR-7),
+configurable thresholds by use of YAML files (FR-8) and visibility of the health status
+using monitoring dashboards (FR-9).
+
+ID
+
+Requirement Description
+
+46
+
+FR-1
+
+The system shall collect CPU percentage, memory percentage, and
+network I/O metrics from all Docker Swarm service containers at
+intervals not exceeding 15 seconds to enable timely detection of
+degradation patterns.
+
+FR-2
+
+The system shall detect threshold violations (CPU > 75%, memory >
+80%, network boundaries configurable) within 10 seconds of sustained
+breach occurrence, filtering transient spikes through consecutive breach
+requirements (minimum 2 consecutive intervals).
+
+FR-3
+
+The system shall classify failure scenarios using network-aware
+correlation distinguishing container stress (Scenario 1: high CPU, low
+network → migration) from traffic surge (Scenario 2: high CPU, high
+network → horizontal scaling).
+
+FR-4
+
+For Scenario 1 (container stress), the system shall execute zerodowntime container migration using Docker Swarm rolling update
+mechanism with start-first ordering, targeting healthy nodes with
+available resources (CPU < 60%, memory < 70%).
+
+FR-5
+
+For Scenario 2 (traffic surge), the system shall execute horizontal scaling
+by incrementing service replica count according to configurable scaling
+factors, distributing new replicas across available cluster nodes through
+Docker Swarm scheduler.
+
+FR-6
+
+The system shall enforce asymmetric cooldown periods preventing
+oscillation: 60 seconds minimum delay between consecutive scale-up
+operations, 180 seconds minimum delay between consecutive scaledown operations, ensuring metric stabilization before permitting further
+changes.
+
+FR-7
+
+The system shall log all monitoring data, threshold violations,
+classification decisions, recovery actions, and outcomes to persistent
+time-series database enabling historical analysis, troubleshooting, and
+continuous improvement.
+
+FR-8
+
+The system shall support configurable threshold values, network traffic
+boundaries, consecutive breach counts, cooldown periods, and scaling
+factors through YAML configuration files, enabling threshold tuning
+without code modification.
+47
+
+FR-9
+
+The system shall provide health status visibility through monitoring
+dashboard displaying current metric values, alert states, recent recovery
+actions, and system overhead measurements.
+Table 3: Functional Requirements
+
+3.3.2 Non-Functional Requirements
+Quality attributes for practical viability in resource constrained SME deployments
+are shown in Table 4. Performance requirements specify ≤ 15 second detection latency
+(NFR-1), <5% CPU overhead per node (NFR-2) and <1Mbps network traffic per
+service (NFR-3). Reliability needs ≤ 80% zero downtime success rate for migrations
+(NFR-4).
+
+Transparency requires decision-traceability in recovery (NFR-5). Simplicity, no
+kernel modifications, no custom controller, no ML model training(NFR-6
+Compatibility requires Docker Swarm 19.03+ support (NFR-7). Availability 99.9%
+uptime monitoring components (NFR-8).
+
+ID
+
+Requirement Description
+
+NFR-1 Performance - Detection Latency: Alert detection latency shall not
+exceed 15 seconds from sustained threshold breach to recovery action
+initiation, enabling intervention before complete container failure.
+NFR-2 Resource Efficiency - CPU: Monitoring and decision subsystem
+overhead shall consume less than 5% CPU resources per cluster node
+during steady-state operation, validated through continuous monitoring
+during 24-hour baseline measurements.
+NFR-3 Network Efficiency - Bandwidth: Metric transmission shall generate less
+than 1 Mbps network traffic per monitored service to support legacy 100
+Mbps infrastructure common in SME deployments, achieved through
+metric batching and compression.
+NFR-4 Reliability - Zero-Downtime Success: The system shall achieve
+minimum 80% zero-downtime success rate during Scenario 1 migration
+48
+
+operations under stable network conditions, with failures attributed to
+infrastructure limitations rather than system design defects.
+NFR-5 Transparency - Traceability: All recovery decisions shall be traceable to
+specific threshold violations, classification logic, and configuration
+parameters, enabling operators to understand and validate automated
+actions through log analysis.
+NFR-6 Simplicity - Deployment: System deployment shall require no kernel
+modifications, no custom Docker Swarm controller development, no
+machine learning model training, and utilization of standard Docker
+Swarm API capabilities exclusively.
+NFR-7 Compatibility: The system shall function correctly on Docker Swarm
+versions 19.03 and above without requiring orchestrator modifications
+or proprietary extensions.
+NFR-8 Availability: Monitoring and decision components shall achieve 99.9%
+uptime through deployment as Docker Swarm services with automatic
+restart policies and health check monitoring.
+Table 4: Non-Functional Requirements
+
+3.3.3 Hardware and Software Requirements
+Table 5 represents hardware and software environment representing typical SME
+infrastructure. Hardware configuration consists of 5-node cluster, Intel Core i5
+equivalent with 4 cores, 2.5 GHz for each node, 8-16 GB ram, 50-100 GB SSD
+storage, and 100Mbps switched Ethernet. Cluster topology (1 manager nodes (Raft
+quorum) and 4 worker nodes).
+
+Software stack: Ubuntu Server 22.04 LTS, Docker Engine 20.10.x with Swarm
+mode, InfluxDB 2.7.x - metrics storage, custom python monitoring agents (docker-py
+SDK), python 3.11+ - Docker SDK and InfluxDB client libraries, custom - FastAPI
+0.104.x - stress testing application.
+
+Component
+
+Specification
+49
+
+Hardware Configuration (5-Node Cluster)
+CPU
+
+Intel Core i5 or equivalent (4 cores, 2.5 GHz minimum)
+per node
+
+RAM
+
+8 GB DDR4 minimum per node (tested with 16 GB)
+
+Storage
+
+50 GB SSD for operating system and Docker images; 100
+GB for InfluxDB time-series data
+
+Network
+
+100 Mbps switched Ethernet connecting all cluster nodes
+(validates performance on legacy infrastructure)
+
+Cluster Topology
+
+1 manager nodes (Raft consensus quorum for fault
+tolerance); 4 worker nodes (workload execution only)
+
+Software Stack
+Operating System
+Container Runtime
+
+Ubuntu Server 22.04 LTS (all nodes)
+Docker Engine 20.10.x with Swarm mode enabled
+
+Time-Series Database InfluxDB 2.7.x for metrics storage and time-series data
+management evaluation, and alerting
+Metrics Collection
+
+Custom Python monitoring agents (using docker-py
+SDK) deployed per worker node collecting container
+metrics via Docker Stats API
+
+Automation Scripts
+
+Python 3.11+ with Docker SDK (docker-py 7.0.x) and
+InfluxDB client library (influxdb-client 1.40.x)
+
+Stress Testing
+
+Custom FastAPI 0.104.x application for reproducible
+CPU, memory, and network stress injection
+
+Development Tools
+
+Git
+
+for
+
+version
+
+control;
+
+PyCharm
+
+for
+
+Python
+
+development; Visual Studio Code for configuration
+editing
+Table 5: Hardware and Software Requirements
+
+3.4 Development and Implementation
+3.4.1 Development Methodology
+SwarmGuard development followed the iterative approach passing through four
+phases in 28 weeks. Phase 1 (Requirements Analysis and Literature Review, 8 weeks)
+included a research survey, Docker Swarm analysis, limitation identification and
+50
+
+requirements establishment. Phase 2 (System Design and Architecture, 5 weeks)
+resulted in monitoring framework specification, classification logic definition,
+migration strategy design and technology stack selection.
+
+Phase 3 (Implementation and Integration, 10 weeks) consisted of setup of cluster,
+monitoring of stack-deployment, YAML configuration development, Python
+automation script implementation, Docker Swarm API integration, and threshold
+tuning. Phase 4 (Testing and Validation, 5 weeks) included stress application
+development, experimental trial execution, metric collection, statistical analysis and
+documentation.
+
+3.4.2 Technology Stack Justification
+InfluxDB is used as time-series database because of push-based ingestion which
+allows sub-second metric availability for storage and visualization, and low resource
+footprint for edge deployment. Threshold evaluation is not done by database queries
+but by monitoring agents. Alternatives such as Prometheus (pull based, introduce
+detection latency), TimescaleDB (SQL based complexity) and Graphite (Limited
+querying) were considered, but rejected.
+
+Python monitoring agents use docker-py SDK that provides native access to
+Docker Stats API for metrics collection without container instrumentation. Event
+driven Architecture with transmission of alerts via http using python requests library
+allows for sub-100ms alert latency. Python Flask framework offers the endpoints with
+the Recovery Manager for getting the alerts. The large ecosystem of Python language,
+easy error handling using the python library (Asyncio) for concurrent operations and
+faster development prompted the choice over Go (Tougher learning curve), Node.js
+(Callback complexity) and Java (Heavyweight Runtime).
+
+51
+
+3.4.3 Cluster Infrastructure Setup
+The 5-node Docker Swarm cluster has 1-manager, 4-worker topology offering fault
+tolerant control plane via Raft consensus but separates the execution of workload to
+dedicated workers. The master node performs cluster management such as scheduling
+decision, service state monitoring, Raft consensus, and includes Python Flask
+Recovery Manager. Worker nodes (worker-1 through worker-4) run application
+workloads and run Python monitoring agents between production traffic and control
+plane operations.
+
+The physical network topology of the experimental Docker Swarm cluster is shown
+in Figure 15. The architecture is 1 master node and 4 worker nodes (worker-1 to
+worker-4) connected to each other through a 100Mbps Ethernet switch. InfluxDB and
+Grafana are installed on a separate Raspberry Pi for centralized monitoring. Python
+monitoring agents are executed on each of the worker nodes for the collection of
+metrics distributed across the nodes. The Python Flask-based Recovery Manager runs
+on the master node for centralized decision-making and orchestration of recovery.
+
+52
+
+Figure 15: Docker Swarm Cluster Network Topology
+This separation avoids resource contention between SwarmGuard's
+monitoring infrastructure and services being monitored by SwarmGuard. InfluxDB
+and Grafana are installed on separate Raspberry Pi in order to separate the
+observability overhead from the cluster resource measurements.
+
+3.4.4 Monitoring Stack Deployment
+InfluxDB has single replica deployment as Docker Swarm service restricted to
+manager-1 with persistent volume mount to ensure data persistence across container
+restarts. Database configuration, 2 GB memory is allocated for caching, the number
+of metrics to retain is limited to 30 days (analyzing history vs. storage limitations),
+and 10 seconds can be set for metric collection intervals for real-time monitoring to
+match metric collection frequency.
+
+53
+
+Python monitoring agents are deployed as a single Docker Swarm service with
+node-specific placement constraints (one agent per worker node). Each agent gathers
+metrics from co-located containers using Docker socket (/var/run/docker.sock)
+mounting, reading CPU percentage, memory usage and network I/O from Docker
+Stats API. When thresholds go above for 2 consecutive intervals, agents send alerts
+via http post back to Flask Recovery Manager with complete context of metrics.
+Agents are also used to batch the metrics every 10 seconds and send them to InfluxDB
+for historical analysis and Grafana visualization.
+
+3.4.5 Automation Script Architecture
+Python automation scripts are used to incorporate SwarmGuard's decision and
+execution logic in five integrated modules. Alert Listener receives alerts from the
+monitoring agents after evaluating thresholds that give threshold violation
+notification. Scenario Classifier implements a network-aware decision logic that
+processes CPU and network information in order to decide which one is Scenario 1
+(migration) or Scenario 2 (scaling). Migration Executor interacts with Docker Swarm
+API to know what healthy target nodes are, add placement constraints, start rolling
+updates and track migration progress.
+
+Scaling Executor handles the adjustment of the replica count with the cooldown
+periods to avoid oscillation. Logger module: to record all the actions, decisions, and
+results done, for historical analysis and debugging, they are being recorded into
+InfluxDB.
+
+3.4.6 Configuration Management
+SwarmGuard uses YAML-based configuration files that allow tuning the
+thresholds without changing the code. Configuration structure, including monitoring
+parameters (collection interval, batch size), threshold values (CPU 75%, memory
+80%, network boundaries), consecutive breach requirements (2 intervals minimum),
+cooldown periods (60s scale-up, 180s scale-down), scaling factors (replica increment
+count) and target node selection criteria (CPU < 60%, memory < 70%). Operators
+54
+
+make changes to parameters depending on the characteristics of the application, and
+then restart automation scripts to apply changes without redeployment.
+
+3.5 Research Methodology Overview
+3.5.1 Experimental Design
+Validation uses controlled experiments of reactive baseline recovery vs.
+SwarmGuard proactive methods in two failure situations. Thirty total trials consist of
+10 baseline reactive tests which setup Docker Swarm's default recovery performance,
+10 Scenario 1 proactive tests which evaluate container stress migration effectiveness,
+and 10 Scenario 2 proactive tests which assess traffic surge scaling responsiveness.
+All experiments are done with the same cluster configuration, stress application, and
+measurement procedures so that a valid comparison will be made.
+
+Baseline reactive tests manually stop containers (docker kill), time until Docker
+Swarm notices the failure via health checks, schedules replacement containers and
+restores service availability. This establishes Mean Time To Recovery (MTTR)
+detect-after-failure paradigm. Scenario 1 puts stress on the inject CPU with
+computational workload but no increase of network traffic thereby activating the
+migration logic of the SwarmGuard. Scenario 2 tests provide high network traffic at
+the same time as CPU stress that will trigger horizontal scaling.
+
+3.5.2 Stress Testing Application
+The stress testing application uses Python FastAPI framework that offers four
+endpoints
+
+for
+
+controlled
+
+failure
+
+injection.
+
+/stress/cpu
+
+endpoint
+
+using
+
+multiprocessing performs intensive CPU loop calculations that use 80-90% CPU
+without creating network traffic. /stress/memory endpoint allocates growing
+amount of data structures until memory limits are reached. /stress/network
+endpoint generates high-volume (>=65Mbps) High Traffic Simulated Responses
+(HTR) using a response size of 1000000000 bytes. /health endpoint will implement
+Docker's health check protocol that returns HTTP 200 code when
+55
+
+The stress application is deployed as Docker Swarm service with 1 replicas in
+worker nodes. Experimental trials are aimed at individual replicas using direct node
+IP addresses so that the stress is not spread across all the replicas, but rather contained
+to individual containers. This controlled approach allows for the precision
+measurement of per container recovery timing.
+
+3.5.3 Evaluation Metrics
+There are four main metrics that measure SwarmGuards effectiveness and
+efficiency. Mean Time To Recovery (MTTR) the amount of seconds between the last
+successful health check time before failure and the first successful health check time
+after recovery, as a measure of overall recovery speed. Zero-Downtime Success Rate
+is also a percentage of Scenario 1 trials that achieve complete migration without any
+failed health checks during transition, where (successful migrations/total trials)x100%
+is calculated. Above 80% is considered to be practically viable.
+
+System Overhead measures the resource usage by the components of SwarmGuard.
+CPU Overhead Measured as percentage of node CPU resources used by Python
+monitoring agents, InfluxDB and Flask Recovery Manager when system is in steady
+state. Network Overhead, it measures the network overhead in terms of bandwidth
+used by metric batching and transmission of an alert over the network in Mbps for
+each monitored service. Both metrics are used to validate conformance to efficiency
+requirements (< 5% CPU, < 0.5Mbps network). Recovery Action Appropriateness
+qualitatively evaluates the appropriateness of executed recovery actions to classified
+scenarios and actual failure causes based on manual log analysis.
+
+3.5.4 Statistical Analysis
+MTTR measurements are statistically analyzed for the significance of measured
+differences. Descriptive statistics are calculated or a mean, median, standard
+deviation, minimum, maximum value for each trial group. Welch's t-test is used to
+56
+
+compare the mean MTTR between reactive baseline and proactive recovery in which
+p-value < 0.05 threshold indicates statistical significance. Cohen's calculation of
+effect size provides a measure of practical size of improvements where above 0.8 are
+large effects and represent meaningful impact in the real world.
+
+3.5.5 Experimental Procedure
+Each experiment has standardized procedure to ensure reproducibility. First, check
+for cluster health, ensure all nodes are operational, services are running and
+monitoring is running. Second, make baseline measurements about pre-test CPU,
+memory, and network measurements. Third, inject stress (appropriate endpoint (CPU
+stress for Scenario 1, CPU + network for Scenario 2, manual kill for baseline)).
+Fourth, observe SwarmGuard response or Docker Swarm default recovery based on
+trial type.
+
+Fifth, make detailed timing measurements such as stress initiation, alert generation,
+recovery action and service restoration times. Sixth, allow and 5-minute cooldown
+period between trials making sure metrics are stabilized. Seventh, export all metrics
+& logs for off-line analysis.
+
+3.5.6 Gantt Chart and Project Timeline
+
+Figure 16: Project Development Timeline
+The project Gantt chart over a 28 week development timeline over two academic
+semesters (CSP600 and CSP650) is presented in Figure 16. The development
+followed the four phase iterative methodology as described in Section 3.4.1. The first
+semester was devoted to basic research and design activities: problem analysis and
+57
+
+literature research (Weeks 1-8); requirements analysis that resulted in functional and
+non-functional specifications by Week 11 (Section 3.3); and system architecture
+design that resulted in the definition of the monitoring, decision, and execution layers
+(Section 3.2). The second semester focused on implementation and validation:
+infrastructure setup creating 5-node docker swarm cluster (Weeks 3-6, Section 3.4.3),
+monitoring stack deployment integrating InfluxDB and python agents (Weeks 5-8,
+Section 3.4.4), automation scripts development Recovery Manager (Weeks 7-10,
+Section 3.4.5), experimental testing and validation (Weeks 9-12, Section 3.5), final
+thesis documentation (Weeks 2-14). The overlap of the activities in the
+implementation phase reflects the iterative nature of the approach in which monitoring
+deployment, automation development and preliminary testing were conducted in
+parallel with the ability to continually refine the threshold configurations and recovery
+logic through empirical observations.
+
+3.6 Ethical Considerations
+This research does not include any human subjects, sensitive data collection or
+activities that impact privacy. Experimental validation uses synthetic stress testing on
+the dedicated research infrastructure instead of production systems, and there are no
+risks to business operations or user data. The main ethical issue is the accurate and
+complete reporting of experimental results including failures, limitations and negative
+results. All MTTR measurements, overhead statistics, failure rates and qualitative
+observations are written down in detail allowing informed evaluation of the practical
+viability and limitations of SwarmGuard.
+
+3.7 Chapter Summary
+This chapter introduced the methodology for research, system architecture,
+implementation approach, and validation strategy of the development and evaluation of
+SwarmGuard. The iterative development model allowed threshold values and recovery
+logic to be refined in a systematic way based on empirical testing. System architecture
+combines the elements of monitoring (Python agents, InfluxDB), decision (Python
+
+58
+
+Flask Recovery Manager) and execution (Docker Swarm API using Python SDK)
+following event-driven proactive recovery principles.
+
+Requirements analysis set functional requirements (real-time monitoring, context
+aware classification, zero downtime migration, horizontal scaling) and non-functional
+requirements (< 15s detection latency, < 5% CPU overhead, 80% zero downtime
+success rate). Technology stack selected was a balance between requirement for
+functionality and requirement for ease of deployment between push-based InfluxDB for
+sub-second availability of metrics and Python automation for quick development.
+
+Validation uses controlled experiment that compares reactive baseline and proactive
+recovery for 30 trials for MTTR, zero downtime success rate, system overhead and
+recovery appropriateness. Significance and practical magnitude of observed
+improvements are quantified by statistical analysis using Welch's t-test and Cohen's d.
+The systematic methodology ensures full documentation for reproducibility and wellinformed evaluation of SwarmGuard's contributions. Experimental results that show
+high reduction of MTTR (97.4%) and minimal resource overhead are presented in
+Chapter 4.
+
+59
+
+CHAPTER 4
+
+RESULT AND FINDINGS
+4.1 Introduction
+This chapter presents comprehensive experimental validation of SwarmGuard across
+three critical performance dimensions: Mean Time To Recovery (MTTR), system
+resource overhead, and operational effectiveness across two distinct failure scenarios
+(resource stress requiring migration and high-traffic requiring scaling).
+
+Experimental validation spanned eight days on a five-node Docker Swarm cluster,
+generating 30 test iterations with controlled conditions. Testing employed gradual stress
+injection, comprehensive metrics collection through InfluxDB and Grafana, and
+systematic parameter variation for statistical reliability. Results demonstrate substantial
+improvements in recovery time, service availability, and adaptive responsiveness.
+
+The infrastructure consisted of master node managing cluster orchestration and
+hosting recovery manager plus load balancer, complemented by four worker nodes
+running monitoring agents and application containers. All nodes operated on Ubuntu
+22.04 LTS with Docker Swarm 20.10.
+
+60
+
+Figure 17: SwarmGuard Deployment Architecture
+
+Figure 17 illustrates the three-tier SwarmGuard deployment architecture in
+the experimental testbed. The external monitoring infrastructure tier hosts InfluxDB
+(port 8086) and Grafana (port 3000) for centralized metric storage and visualization.
+The master node management layer runs the Recovery Manager (port 5000) for
+decision-making and the Load Balancer (port 8081) for traffic distribution. The
+distributed worker tier deploys monitoring agents (port 8082) across four worker nodes
+(worker-1 through worker-4) for local metric collection.
+
+61
+
+4.2 Baseline Performance: Docker Swarm Reactive Recovery
+4.2.1 Experimental Setup
+Baseline measurements establish Docker Swarm's native reactive recovery
+performance without SwarmGuard. Test application consisted of single replica webstress service with standard health checks: 10-second intervals and 2 consecutive
+failure threshold. Failures induced through gradual stress ramping CPU to 80% and
+memory to 1024MB (1GB) over 30-second configurable period, mirroring real-world
+degradation.
+
+Ten independent test iterations established statistical reliability. Each test followed
+identical protocol: deployment, stabilization (60s), stress injection, failure occurrence,
+recovery completion, and metrics collection. Automated health check monitoring at
+1-second intervals ensured precise capture of service availability.
+
+4.2.2 Mean Time To Recovery (MTTR) Results
+Table 6 presents MTTR measurements across all 10 baseline tests. MTTR defined
+as time interval between last successful HTTP health check (HTTP 200) and first
+successful health check after recovery.
+
+Test Number
+
+MTTR (seconds)
+
+Downtime Duration
+
+1
+
+24.0
+
+24 seconds
+
+Reactive restart
+
+2
+
+25.0
+
+25 seconds
+
+Reactive restart
+
+3
+
+24.0
+
+24 seconds
+
+Reactive restart
+
+4
+
+21.0
+
+21 seconds
+
+Reactive restart
+
+5
+
+25.0
+
+25 seconds
+
+Reactive restart
+
+6
+
+21.0
+
+21 seconds
+
+Reactive restart
+
+7
+
+22.0
+
+22 seconds
+
+Reactive restart
+
+8
+
+21.0
+
+21 seconds
+
+Reactive restart
+
+9
+
+24.0
+
+24 seconds
+
+Reactive restart
+
+62
+
+Recovery Method
+
+10
+
+24.0
+
+24 seconds
+
+Statistics
+
+Mean: 23.1s
+
+Median: 24.0s
+
+Reactive restart
+Range: 21-25s
+
+Table 6: Baseline MTTR Measurements (Reactive Docker Swarm Recovery)
+
+Baseline results demonstrate consistent reactive recovery with mean MTTR of
+23.10 seconds and minimal variance (standard deviation 1.66s). Range analysis
+reveals even best-case reactive recovery (21s) significantly exceeds acceptable
+downtime thresholds. Median MTTR of 24.00 seconds confirms tight distribution.
+
+Figure 18: Baseline Reactive Recovery Health Check Results
+
+Figure 18 presents continuous health check monitoring results during baseline
+reactive recovery testing. The output shows consistent HTTP 200 responses during
+normal container operation, followed by complete service unavailability (000DOWN
+status) when reactive recovery triggers. The health check script, executing every 1
+second via curl probes to the /health endpoint, demonstrates 23+ seconds of
+63
+
+continuous downtime during Docker Swarm's reactive restart process, establishing
+the baseline performance metric.
+
+4.2.3 Downtime Characteristics
+Analysis of HTTP health check logs reveals baseline recovery experiences
+complete service unavailability during entire recovery period with zero partial
+availability. Every HTTP request during 23-second window returns connection
+refused errors. Timeline decomposed 23-second downtime into four phases: health
+check detection (~10s, 43% of total), container termination (~2s), container restart
+(~8s), and health check validation (~3s).
+
+Figure 19: Baseline Reactive Recovery Service Status
+
+Figure 19 displays the Docker service ps output capturing the reactive recovery
+timeline. The output shows web-stress.1 on worker-3 in Running state, web-stress.1
+on worker-3 transitioning to Shutdown state, and the restart web-stress.1 replica on
+worker-3 again in Running state (started 5 seconds ago). This demonstrates Docker
+Swarm's reactive recovery mechanism replacing failed containers with new instances
+rather than migrating existing containers.
+
+This breakdown reveals majority of downtime (~10s, 43%) consumed by failure
+detection rather than actual recovery operations. Proactive approaches can initiate
+recovery based on early warnings before complete failure, potentially eliminating
+detection delay entirely.
+
+64
+
+4.3 Scenario 1: Proactive Migration Results
+4.3.1 Test Configuration and Methodology
+Scenario 1 evaluates SwarmGuard's capability to proactively migrate
+containers experiencing resource stress before complete failure. Detection thresholds
+trigger migration when CPU > 75% OR memory > 80%, combined with network
+traffic < 35% baseline capacity. Network threshold discriminates between resource
+stress (Scenario 1) and high-traffic (Scenario 2).
+
+Figure 20: Scenario Classification Decision Tree
+
+Figure 20 illustrates the scenario classification decision tree implemented in
+SwarmGuard to distinguish between different failure modes. The decision logic
+evaluates CPU and memory thresholds in combination with network I/O correlation
+analysis. This network-aware approach determines whether high resource usage stems
+65
+
+from node-specific resource exhaustion (triggering Scenario 1 proactive migration) or
+cluster-wide traffic surge (triggering Scenario 2 horizontal auto-scaling), enabling
+context-appropriate recovery strategies.
+
+Proactive migration uses Docker Swarm's rolling update with start-first ordering
+enabling zero-downtime transitions. Docker Swarm creates replacement container on
+target node and waits for health checks before terminating original, ensuring at least
+one healthy replica remains available throughout. Migration target selected based on
+current resource availability, prioritizing nodes with lowest CPU and memory
+utilization.
+
+4.3.2 Mean Time To Recovery Results
+Table 7 presents MTTR measurements for proactive migration tests. Results
+demonstrate fundamental transformation from baseline, with 8 out of 10 tests
+achieving zero measurable downtime. This represents 80% success rate for perfect
+zero-downtime migration, with remaining two tests experiencing only 1s and 5s
+interruptions.
+
+Test
+
+MTTR
+
+Zero-Downtime?
+
+Recovery Method
+
+Number
+
+(seconds)
+
+1
+
+0.0
+
+YES
+
+Proactive migration
+
+2
+
+0.0
+
+YES
+
+Proactive migration
+
+3
+
+0.0
+
+YES
+
+Proactive migration
+
+4
+
+0.0
+
+YES
+
+Proactive migration
+
+5
+
+0.0
+
+YES
+
+Proactive migration
+
+6
+
+0.0
+
+YES
+
+Proactive migration
+
+7
+
+1.0
+
+NO
+
+Proactive migration (brief
+delay)
+
+8
+
+0.0
+
+YES
+
+66
+
+Proactive migration
+
+9
+
+5.0
+
+NO
+
+Proactive
+
+migration
+
+(delayed)
+10
+
+0.0
+
+YES
+
+Statistics
+
+Mean: 0.6s
+
+80% Zero-
+
+Proactive migration
+97.4% Improvement
+
+Downtime
+Table 7: Scenario 1 MTTR Measurements (Proactive migration with
+SwarmGuard)
+
+Figure 21: Proactive Migration Health Check Results
+
+Figure 21 presents continuous health check monitoring results during Scenario 1
+proactive migration testing. The output demonstrates uninterrupted HTTP 200
+responses throughout the entire migration process, contrasting sharply with baseline
+67
+
+reactive recovery. Unlike the reactive approach that exhibited 23+ seconds of
+downtime, SwarmGuard initiates migration before container failure occurs,
+maintaining continuous service availability during the entire recovery operation and
+achieving zero-downtime migration.
+
+Statistical summary reveals mean MTTR of 0.60 seconds, representing 97.4%
+reduction from baseline's 23.10 seconds. Median MTTR of 0.00 seconds emphasizes
+majority (80%) achieved perfect zero-downtime. Analysis of two non-zero-downtime
+cases reveals Tests 7 (1s) and 9 (5s) both experienced image pull delay on target node,
+creating brief gap where old container stopped but new container wasn't yet
+operational.
+
+Figure 22: Proactive Migration Service Status
+
+Figure 22 displays the Docker service ps output captured during proactive
+migration mid-execution. The output shows web-stress.1 on worker-4 in Running
+state (started 4 seconds ago), representing the newly migrated healthy container. The
+web-stress.1 instance on worker-3 appears in Shutdown state (terminated 4 seconds
+ago), indicating the gracefully terminated source container. This demonstrates
+SwarmGuard's proactive migration approach that creates a new container instance on
+the target node using start-first ordering before terminating the source container,
+unlike reactive recovery's container replacement strategy.
+
+4.3.3 Comparative Analysis: Baseline vs. Scenario 1
+Table 8 presents comprehensive statistical comparison. Mean MTTR improvement
+of 97.4% (23.1s to 0.6s) represents headline finding. Median improvement of 100%
+(24.0s to 0.0s) indicates more than half achieved perfect zero-downtime. Best-case
+
+68
+
+comparison reveals even optimal reactive recovery (21s) cannot match typical
+proactive result (0s).
+
+Metric
+Mean MTTR
+
+Baseline
+
+Scenario 1
+
+(Reactive)
+
+(Proactive)
+
+23.1 seconds
+
+0.6 seconds
+
+Improvement
+22.5s reduction
+(97.4%)
+
+Median MTTR
+
+24.0 seconds
+
+0.0 seconds
+
+24.0s reduction
+(100%)
+
+Best Case (Min)
+
+21.0 seconds
+
+0.0 seconds
+
+21.0s reduction
+(100%)
+
+Worst Case (Max)
+
+25.0 seconds
+
+5.0 seconds
+
+20.0s reduction
+(80%)
+
+Zero-Downtime
+
+0% (0/10 tests)
+
+Rate
+
+80% (8/10 tests)
+
++80 percentage
+points
+
+Table 8: MTTR Comparison - Baseline vs SwarmGuard Scenario 1
+
+Figure 23: Scenario 1 Resource Utilization Patterns
+
+Figure 23 presents the Grafana dashboard displaying resource utilization
+patterns that triggered Scenario 1 proactive migration. The top panel shows CPU
+69
+
+utilization with gradual increase but still not hit the threshold, indicating resource
+stress. The middle panel displays memory consumption approaching the 80% limit,
+confirming resource exhaustion. The bottom panel reveals network I/O maintaining
+normal levels below 35 Mbps, a critical indicator that distinguishes this scenario from
+traffic surge. This network-aware correlation analysis correctly identified nodespecific resource exhaustion, triggering container migration as the optimal recovery
+strategy.
+
+Zero-downtime rate metric quantifies qualitatively different outcome:
+complete elimination of service interruption. Transition from 0% to 80% zerodowntime success represents capability completely absent in reactive approaches.
+This has particular significance for mission-critical applications where brief
+interruptions trigger cascading failures or violate SLAs.
+
+Figure 24: Recovery Timeline Comparison
+
+Figure 24 provides a comparative analysis of recovery timelines across baseline
+reactive recovery and SwarmGuard's proactive migration approach. The visualization
+highlights the dramatic reduction in Mean Time to Recovery (MTTR) achieved
+through proactive intervention, demonstrating the performance improvements across
+70
+
+multiple test iterations and establishing the quantitative benefits of the proposed
+system.
+
+Figure 25: Recovery Timeline of Scenario 1 (Zero Downtime)
+
+Figure 25 presents the recovery timeline for Scenario 1 proactive migration
+achieving zero-downtime recovery. The timeline visualization shows the complete
+sequence from threshold detection through migration completion, demonstrating that
+service availability remains uninterrupted throughout the entire recovery operation.
+This represents the optimal case where SwarmGuard successfully migrates the
+container before any service degradation occurs, achieving a Mean Time to Recovery
+of 0.60 seconds with zero measurable downtime.
+
+71
+
+Figure 26: Recovery Timeline of Scenario 1 (~1-3 seconds of downtime)
+
+Figure 26 displays the recovery timeline for Scenario 1 cases experiencing minimal
+downtime of 1-3 seconds. These cases occurred when the container image was not
+cached on the target node, requiring an image pull operation that created a brief gap
+between old container termination and new container readiness. Despite this image
+pull delay, performance still significantly outperforms the baseline reactive approach,
+demonstrating the robustness of proactive recovery even when image locality
+optimization is unavailable.
+
+72
+
+Figure 27: Baseline Recovery Timeline (22-23 seconds downtime)
+
+Figure 27 illustrates the baseline reactive recovery timeline demonstrating 22-23
+seconds of service downtime. The visualization shows the complete failure-detectionrestart cycle inherent to reactive approaches: container failure occurs, health checks
+detect the failure after multiple consecutive failures, and Docker Swarm initiates
+container replacement. This baseline measurement establishes the performance
+benchmark against which SwarmGuard's proactive recovery improvements are
+measured.
+
+4.4 Scenario 2: Horizontal Auto-Scaling with Lease-Based Load Balancing
+4.4.1 Test Configuration and Methodology
+Scenario 2 evaluates horizontal auto-scaling for handling legitimate high-traffic
+situations where insufficient capacity is the issue. Detection thresholds trigger when
+CPU > 75% OR memory > 80%, combined with network traffic ≥ 65% baseline
+73
+
+capacity. This contrasts with Scenario 1's network < 35% requirement, creating clear
+decision boundary.
+
+Auto-scaling operates conservatively: scale-up adds exactly one replica (maximum
+10), scale-down removes one replica (minimum 1). Cooldown periods prevent
+oscillation: 60 seconds scale-up, 180 seconds scale-down. This asymmetry (3:1 ratio)
+reflects different risk profiles—excessive scale-up wastes resources temporarily,
+premature scale-down risks service degradation.
+
+4.4.2 Scaling Performance Results
+Table 9 presents horizontal scaling performance across 10 tests. Results
+demonstrate 100% zero-downtime success rate through predictive auto-scaling
+preventing failures before occurrence, completely eliminating recovery time. This
+perfect success contrasts with Scenario 1's 80%, suggesting preventive capacity
+expansion is even more reliable than proactive migration.
+
+Test
+
+Initial
+
+Max
+
+Scaling
+
+Result
+
+Number
+
+Replicas
+
+Replicas
+
+Events
+
+1
+
+1
+
+2
+
+2
+
+Success
+
+2
+
+1
+
+3
+
+3
+
+Success
+
+3
+
+1
+
+2
+
+2
+
+Success
+
+4
+
+1
+
+2
+
+2
+
+Success
+
+5
+
+1
+
+2
+
+2
+
+Success
+
+6
+
+1
+
+2
+
+1
+
+Success (conservative)
+
+7
+
+1
+
+2
+
+2
+
+Success
+
+8
+
+1
+
+2
+
+2
+
+Success
+
+9
+
+1
+
+3
+
+4
+
+Success
+controlled
+cooldown)
+
+10
+
+1
+
+2
+
+2
+
+74
+
+Success
+
+(oscillation
+by
+
+Statistics
+
+Average Max: 2.2 replicas | Success Rate: All tests successful
+100%
+Table 9: Scenario 2 Horizontal Scaling Performance Results
+
+Figure 28: Horizontal Auto-Scaling Service Status
+
+Figure 28 displays the Docker service ps output capturing horizontal auto-scaling
+in action, scaling from 1 to 2 replicas. The output shows web-stress.1 on worker-4 in
+Running state, representing the original replica. A second web-stress.1 instance on
+worker-3 appears transitioning from Preparing to Running, demonstrating the newly
+added replica. This scaling action occurred because SwarmGuard's network-aware
+classification detected cluster-wide traffic surge (high CPU with high network I/O),
+triggering horizontal scaling as the appropriate recovery strategy instead of container
+migration.
+
+Average maximum replica count of 2.2 demonstrates efficient resource utilization.
+System successfully prevented failures while adding minimal excess capacity. Only
+two tests (Tests 2 and 9) required scaling to 3 replicas, majority stabilized at 2. Test
+6's single scaling event represents most conservative behavior. Test 9's four scaling
+events represent most dynamic behavior, with cooldown mechanism successfully
+preventing problematic oscillation.
+
+75
+
+Figure 29: Scenario 2 Resource Utilization Patterns
+
+Figure 29 presents the Grafana dashboard displaying resource utilization patterns
+that triggered Scenario 2 horizontal auto-scaling. The top panel shows CPU utilization
+with sustained increase exceeding the 75% threshold across multiple nodes. The
+middle panel displays memory consumption rising proportionally. Critically, the
+bottom panel reveals elevated network I/O exceeding 35 Mbps baseline, indicating
+cluster-wide traffic surge rather than node-specific exhaustion. This network-aware
+correlation analysis correctly identified the need for horizontal scaling to distribute
+increased workload across additional replicas.
+
+4.4.3 Lease-Based Load Balancing Algorithm
+SwarmGuard implements custom lease-based load balancing algorithm
+representing significant advancement over Docker Swarm's built-in round-robin. This
+intelligent load balancer provides request-count awareness without continuous
+metrics collection overhead, enabling fair distribution across replicas even when
+processing times vary. Lease algorithm tracks active ongoing requests per replica and
+routes new requests to replica with fewest active leases.
+
+Load distribution quality measured by comparing request counts across replicas
+after test completion. Lease-based algorithm achieved near-perfect distribution: 8 out
+76
+
+of 10 tests within ±5% of ideal balance, average variance ±5.4%. This represents
+excellent fairness considering inevitable variance from timing of request arrivals and
+completions.
+
+Figure 30: Load Balancer Request Distribution
+
+Figure 30 demonstrates real-time load balancer distribution monitoring across the
+scaled deployment with 2 healthy replicas. The least-connections algorithm achieved
+near-perfect request distribution with worker-3 handling 201 requests (50.1%) and
+worker-4 handling 200 requests (49.9%), demonstrating balanced workload sharing
+with only 0.2% variance. This monitoring output confirms that horizontal auto-scaling
+successfully distributed incoming traffic across multiple container instances,
+preventing individual container overload and validating the effectiveness of Scenario
+2 recovery strategy.
+
+77
+
+100% overall success rate validates both auto-scaling decision logic and load
+balancing algorithm. Every test successfully prevented failure through capacity
+expansion, and every test maintained fair load distribution across resulting replicas.
+
+4.4.4 Cooldown Mechanism Effectiveness
+Cooldown mechanism proved critical in preventing oscillation (rapid cycling
+between scale-up and scale-down). Analysis confirms zero problematic oscillation
+events despite varying traffic patterns. The 180-second scale-down cooldown (3x
+longer than 60-second scale-up) successfully prevents premature capacity reduction
+triggering immediate re-scaling.
+
+Scenario
+Scenario 1
+
+Cooldown Period
+
+Rationale
+
+Effectiveness
+
+60 seconds
+
+Prevent rapid re-
+
+100% (no rapid
+
+migrations
+
+migrations
+
+(Migration)
+
+observed)
+Scenario 2
+
+60 seconds
+
+(Scale-Up)
+
+Allow new replica
+
+100% (gradual
+
+stabilization
+
+scaling
+observed)
+
+Scenario 2
+
+180 seconds
+
+(Scale-Down)
+
+Ensure sustained
+
+100% (zero
+
+idle before
+
+oscillation
+
+capacity reduction
+
+events)
+
+Table 10: Cooldown Configuration and Effectiveness
+
+Figure 31: Horizontal Scale-Down Service Status
+
+Figure 32 displays the Docker service ps output showing horizontal scale-down
+from 2 replicas to 1 following traffic normalization. The output shows web-stress.1
+on worker-3 in Running state, representing the retained replica that continues serving
+78
+
+requests. The web-stress.1 instance showing Failed state (terminated 11 seconds ago)
+with error message 'task: non-zero exit (13)' indicates the gracefully terminated
+replica. SwarmGuard's 180-second scale-down cooldown period ensured sustained
+idle state before initiating capacity reduction, preventing premature scaling that could
+trigger immediate re-scaling oscillations.
+
+100% effectiveness ratings indicate cooldown achieved design objectives across
+all scenarios. No rapid migration events where containers migrated multiple times
+quickly. No rapid scaling events where replicas added and removed in quick
+alternation. Gradual scaling demonstrates system responds deliberately, providing
+stability and predictability.
+
+4.5 System Overhead Analysis
+4.5.1 Measurement Methodology
+System overhead quantifies resource consumption introduced by SwarmGuard's
+infrastructure. Three configurations measured: baseline (Docker Swarm only),
+monitoring-only (monitoring agents added), full SwarmGuard (all components).
+Measurements employed Docker's stats API at 5-second intervals. Each configuration
+measured over 5-minute stabilization with 60 data points per node.
+
+4.5.2 Cluster-Level Overhead Results
+Table 11 presents aggregate overhead across entire cluster. Total memory overhead
+of 221 MB represents only 4.61% of baseline (4,797 MB), leaving 95.39% available
+for applications. Organizations can deploy SwarmGuard on existing hardware without
+capacity expansion.
+
+Configuration
+
+Total CPU
+
+Total
+
+(%)
+
+Memory
+(MB)
+79
+
+Delta CPU
+
+Delta
+Memory
+
+Baseline
+
+1.34%
+
+4797 MB
+
+—
+
+—
+
+Monitoring-
+
+1.25%
+
+4982 MB
+
+-0.09%
+
++184 MB
+
+1.25%
+
+5019 MB
+
+-0.09%
+
++221 MB
+
+Negligible
+
+4.61%
+
+-0.09%
+
+Only
+Full
+SwarmGuard
+Overhead
+Summary
+
+± 221
+
+0.2%
+
+MB
+
+(4.61%)
+
+Table 11: System Overhead Analysis (Cluster-Level)
+
+CPU overhead effectively negligible at -0.09% mean with ±0.2% variance.
+Negative value doesn't indicate reduction but rather measurement falls within natural
+variance. The ±0.2% band encompasses zero, confirming CPU impact statistically
+indistinguishable from zero. Progression from monitoring-only (184 MB) to full
+SwarmGuard (221 MB) reveals recovery manager and load balancer contribute only
+37 MB additional overhead.
+
+4.5.3 Per-Node Overhead Distribution
+Table 12 presents overhead by individual nodes. Worker nodes demonstrate
+consistent overhead averaging 38 MB per node, narrow range from 34 MB (worker2) to 41 MB (worker-4). This consistency indicates monitoring agent resource
+consumption is stable and predictable regardless of environmental factors.
+
+Node
+
+Baseline
+
+Full CPU
+
+CPU
+master (master)
+
+2.24%
+
+2.37%
+
+Baseline
+
+Full
+
+Overhead
+
+Mem
+
+Mem
+
+Mem
+
+2110 MB
+
+2181
+
++71 MB
+
+MB
+worker-1
+
+1.30%
+
+0.97%
+
+568 MB
+
+(worker-1)
+worker-2
+
+604
+
++36 MB
+
+MB
+0.67%
+
+0.71%
+
+(worker-2)
+
+841 MB
+
+875
+MB
+
+80
+
++34 MB
+
+worker-3
+
+1.22%
+
+1.21%
+
+607 MB
+
+(worker-3)
+
++39 MB
+
+MB
+
+worker-4
+
+1.27%
+
+0.97%
+
+672 MB
+
+(worker-4)
+Average
+
+646
+713
+
++41 MB
+
+MB
+per
+
+CPU: negligible
+
+Baseline: ~672 MB
+
+Worker
+
++38 MB
+avg
+
+Table 12:Per-Node Resource Overhead Breakdown
+
+Master node shows highest overhead at 71 MB due to hosting recovery manager
+(43 MB) and load balancer (28 MB) plus monitoring agent. Despite concentration,
+master overhead remains modest. On typical server with 16 GB RAM, 71 MB
+represents <0.5% of available memory. Even distribution across workers ensures
+SwarmGuard doesn't create resource hotspots.
+
+4.6 Discussion
+4.6.1 Achievement of Research Objectives
+Experimental results provide strong evidence SwarmGuard achieves primary
+objectives. The 97.4% MTTR reduction for Scenario 1 (23.10s to 0.60s) and complete
+elimination for Scenario 2 (0.00s mean) demonstrate proactive intervention
+dramatically
+
+improves
+
+service
+
+availability.
+
+These
+
+represent
+
+fundamental
+
+transformation, not marginal optimizations.
+
+The 80% zero-downtime success (Scenario 1) and 100% (Scenario 2) validates
+theoretical benefits realized in practice. Network threshold-based discrimination
+achieved 100% classification accuracy across all 20 tests, validating simple rule-based
+approaches provide sufficient intelligence without complex ML. Custom lease-based
+load balancer achieved near-perfect distribution (±5.4% variance) with only 28 MB
+memory overhead.
+
+81
+
+4.6.2 Implications for Container Orchestration
+Findings have important implications for platform design. Substantial MTTR
+improvements suggest platforms should incorporate early warning systems rather than
+relying exclusively on reactive health checks. Successful intelligent load balancing
+with minimal overhead challenges assumption that resource-aware routing requires
+expensive continuous monitoring.
+
+Critical importance of cooldown mechanisms highlights often-overlooked autoscaling aspect. Results demonstrate simple time-based cooldowns with asymmetric
+periods effectively prevent instability. The 3:1 ratio proved sufficient to eliminate
+oscillation across all tests.
+
+4.6.3 Limitations and Future Work
+The 20% non-zero-downtime rate (Scenario 1) indicates proactive migration
+doesn't guarantee zero downtime universally. Two failure cases reveal failures
+occurred when load balancer synchronization delayed traffic routing or when target
+nodes experienced resource contention. Future work could address through predictive
+synchronization and more sophisticated target node selection.
+
+Lease-based load balancer operates at application layer (Layer 7) introducing ~23ms additional latency versus kernel-level routing. For most applications this
+overhead is negligible, but latency-sensitive applications might prefer kernel-level
+routing. Future work could investigate eBPF-based implementation. Experimental
+validation focused on single-service scenarios; real production runs multiple services
+with complex dependencies requiring multi-service testing.
+
+Rule-based classification achieved 100% accuracy in controlled testing but relies
+on manually tuned thresholds (75% CPU, 80% memory, 35% and 65% network).
+Different applications may require different thresholds. Future work could investigate
+
+82
+
+adaptive threshold tuning automatically adjusting boundaries based on observed
+behavior.
+
+83
+
+CHAPTER 5
+
+CONCLUSION AND RECOMMENDATIONS
+5.1 Conclusion
+This research successfully developed and validated SwarmGuard, a proactive
+recovery system for containerized applications in Docker Swarm environments
+addressing traditional reactive recovery's unavoidable service downtime. SwarmGuard
+detects early warning signs and initiates recovery before complete failure, achieving
+zero-downtime recovery in most scenarios.
+
+The research achieved all three primary objectives: lightweight monitoring and
+decision system using event-driven proactive recovery principles detecting container
+failures with high accuracy while maintaining minimal overhead; zero-downtime
+migration and intelligent horizontal auto-scaling responding to predicted failures;
+comprehensive validation demonstrating 97.4% MTTR reduction compared to baseline
+reactive systems.
+
+Experimental results confirm practical viability. System reduced MTTR from 23.1
+seconds to 0.6 seconds with 80% of migrations having zero downtime. Resource
+overhead was still minimal (<5% CPU and <0.5 Mbps network traffic) meaning it can
+be used in resource-constrained environments. These results prove the feasibility and
+benefit of proactive recovery for both the technical and practical aspects.
+
+5.2 Research Contributions
+Research goes a step further and demonstrates the practical application of proactive
+recovery principles to container orchestration; this goes beyond the autonomic
+computing theory. Provides experimental results on achieving near-zero downtime in
+84
+
+containerized environments, resulting in a better understanding of fault tolerance in
+distributed systems.
+
+SwarmGuard is novel architecture for threshold-based monitoring plus contextaware decision making for Docker Swarm. Event driven design achieves less than one
+second decision latency while having minimal resource overhead and addresses key gap
+in existing container management systems. Custom lease-based load balancing
+algorithm is intelligent traffic distribution without expensive continuous metrics
+collection needs.
+
+Research produces working implementation that can be deployed in production
+environments where resources are limited. By ensuring compatibility with legacy
+100Mbps infrastructure and having <5% computational overhead requirement,
+SwarmGuard facilitates advanced fault tolerance to organizations with constricted
+resources. Comprehensive evaluation framework sets the measurement of MTTR,
+decision accuracy, network efficiency, and system overhead.
+
+5.3 Implications for Practice and Theory
+5.3.1 Practical Implications
+SwarmGuard shows recovery of zero downtime requirement without costly
+infrastructure upgrade. Minimal overhead (<5% CPU, <0.5Mbps network) allows it
+to be feasible for SMEs with limited resources. Organizations can have proactive fault
+tolerance with the use of commodity hardware and existing Docker Swarm
+deployments. The 97% MTTR reduction is a direct translation into improved service
+availability and user experience, which has the significant impact on SLA penalties
+and customer churn.
+
+85
+
+5.3.2 Theoretical Implications
+Research helps to validate the applicability of proactive recovery principles in
+modern containerized systems, which helps to demonstrate that classical computing
+principles are still relevant when translated to modern day cloud native architectures.
+Successful implementation breaks with the assumption of reactive approaches for
+container fault tolerance. Findings suggest threshold-based monitoring, if properly
+tuned, has high prediction accuracy without the need for complex ML models, so
+simpler approaches may be preferable in resource constrained environments.
+
+5.4 Limitations of the Study
+Testing done on 5-node cluster may not be representing large-scale deployments
+with hundreds/thousands of nodes. Study concentrated on resource exhaustion and
+container crashes; other failure modes (network partitions, cascading failures,
+Byzantine faults) not heavily tested. Validation used standardized web application
+workload, the workloads in real world applications with different characteristics may
+exhibit different failure patterns affecting the prediction accuracy.
+
+Testing assumed relatively stable network with controlled packet loss; highly
+dynamic or unreliable networks may have effect on zero downtime migration capability;
+The 80% zero downtime success rate is an indication that during the 20% of migrations,
+there were brief downtime interruptions, so there is room to improve upon achieving
+true guaranteed zero downtime recovery.
+
+5.5 Recommendations for Future Work
+Investigate hybrid methods using threshold-based detection and ML models
+(LSTM, ensemble methods) to improve accuracy of predictions that capture complex
+patterns of failures. Extend SwarmGuard to support hybrid and multi-cloud
+environments, cross-providing migration. Port architecture to Kubernetes, the biggest
+of the orchestration platforms, which requires platform-specific implementation.
+
+86
+
+Develop the mechanisms to deal with network partition failures with integration
+with service mesh technologies or gossip protocols. Implement self-tuning mechanisms
+that automatically change monitoring thresholds based on observed application
+behavior, relieving much of the burden of manual configuration. Investigate security
+implications of proactive migration such as possible attack vectors and authentication
+issues during relocation.
+
+Develop cost models for cloud deployment where proactive migration costs network
+transfer. Optimization algorithms should take a balance between availability
+improvements and increased operational expenses. Perform long-term stability testing
+over weeks or months that exposes possible slow leaks from a resource or performance
+degrading issues.
+
+5.6 Final Remarks
+This research shows how the proactive fault tolerance of containerized
+systems is both sound in principle and quite feasible with existing technology.
+SwarmGuard offers proof-of-concept to challenge prevailing reactive approaches and
+demonstrate near zero downtime container orchestration with the help of intelligent
+monitoring, context-aware decision making and graceful recovery mechanisms. The
+findings have immediate practical value for organizations that want to improve
+availability of service while conserving resources.
+
+87
+
+REFERENCES
+
+Ahmad, I., AlFailakawi, M. G., AlMutawa, A., & Alsalman, L. (2022). Container scheduling
+techniques: A survey and assessment. Journal of King Saud University - Computer
+and
+
+Information
+
+Sciences,
+
+34(7),
+
+3934-3947.
+
+https://doi.org/10.1016/j.jksuci.2021.03.002
+Ahmed, S. A., Khalifa, E. H., Nawaz, M., Abdalla, F. A., & Mahmoud, A. F. A. (2025).
+Enhancing cloud data center security through deep learning: A comparative analysis
+of RNN, CNN, and LSTM models for anomaly and intrusion detection. Engineering,
+Technology
+
+&
+
+Applied
+
+Science
+
+Research,
+
+15(1),
+
+20071–20076.
+
+https://doi.org/10.48084/etasr.9445
+Andrijauskas, F., Balcas, J., Bockelman, B., Chou, C., Mayans, J., McKee, S., & Würthwein,
+F. (2024). CRIU - Checkpoint Restore in Userspace for computational simulations
+and scientific applications. EPJ Web of Conferences, 295, Article 07046.
+https://doi.org/10.1051/epjconf/202429507046
+Arapakis, I., Park, S., & Pielot, M. (2021). Impact of response latency on user behaviour in
+mobile web search. Proceedings of the 2021 Conference on Human Information
+Interaction
+
+and
+
+Retrieval
+
+(CHIIR
+
+'21),
+
+103–108.
+
+https://doi.org/10.1145/3406522.3446038
+Bentaleb, O., Belloum, A. S. Z., Sebaa, A., & El-Maouhab, A. (2022). Containerization
+technologies: Taxonomies,
+
+applications
+
+and
+
+challenges. The
+
+Journal
+
+of
+
+Supercomputing, 78(1), 1144-1181. https://doi.org/10.1007/s11227-021-03914-1
+Better Stack. (2025). Datadog vs. New Relic: A side-by-side comparison for 2025. Better
+Stack
+
+Community.
+
+https://betterstack.com/community/comparisons/datadog-vs-
+
+newrelic/
+Carrión, C. (2022). Kubernetes scheduling: Taxonomy, ongoing issues and challenges. ACM
+Computing Surveys, 55(7), Article 138. https://doi.org/10.1145/3539606
+
+88
+
+Casalicchio, E., & Iannucci, S. (2020). The state-of-the-art in container technologies:
+Application, orchestration and security. Concurrency and Computation: Practice and
+Experience, 32(17), e5668. https://doi.org/10.1002/cpe.5668
+Chen, Z., Liu, J., Su, Y., Zhang, H., Ling, X., Yang, Y., & Lyu, M. R. (2022). Adaptive
+performance anomaly detection for online service systems via pattern sketching. In
+Proceedings of the 44th International Conference on Software Engineering (ICSE
+'22) (pp. 61–72). ACM. https://doi.org/10.1145/3510003.3510085
+Cloud
+
+Native
+
+Computing
+
+Foundation.
+
+(2024).
+
+CNCF
+
+Annual
+
+Survey
+
+2023.
+
+https://www.cncf.io/reports/cncf-annual-survey-2023/
+CloudZero. (2025). Datadog vs. New Relic: 2025 comparison guide. CloudZero Blog.
+https://www.cloudzero.com/blog/datadog-vs-new-relic/
+Dang-Quang, N.-M., & Yoo, M. (2021). Deep learning-based autoscaling using bidirectional
+long short-term memory for Kubernetes. Applied Sciences, 11(9), 3835.
+https://doi.org/10.3390/app11093835
+Dang-Quang, N.-M., & Yoo, M. (2022). An efficient multivariate autoscaling framework
+using Bi-LSTM for cloud computing. Applied Sciences, 12(7), Article 3523.
+https://doi.org/10.3390/app12073523
+Deloitte Digital. (2020, March). Milliseconds make millions: A study on how improvements
+in mobile site speed positively affect a brand's bottom line. Deloitte.
+https://www2.deloitte.com/ie/en/pages/consulting/articles/milliseconds-makemillions.html
+Di, Z., Shao, E., & Tan, G. (2021). High-performance migration tool for live container in a
+workflow. International Journal of Parallel Programming, 49(5), 658–670.
+https://doi.org/10.1007/s10766-021-00697-z
+Docker Inc. (2024). Docker Swarm mode overview. Docker Documentation.
+https://docs.docker.com/engine/swarm/
+
+89
+
+Dogani, J., Namvar, R., & Khunjush, F. (2023). Auto-scaling techniques in container-based
+cloud and edge/fog computing: Taxonomy and survey. Computer Communications,
+209, 120–144. https://doi.org/10.1016/j.comcom.2023.06.010
+Farhood, S. M., Khorsand, R., Hussein, N. J., & Ramezanpour, M. (2025). A fault-tolerant
+scheduling strategy through proactive and clustering techniques for scientific
+workflows
+
+in
+
+cloud
+
+computing.
+
+Soft
+
+Computing,
+
+29,
+
+755–781.
+
+https://doi.org/10.1007/s00500-025-10485-3
+Google/SOASTA Research. (2017). Mobile page speed: New industry benchmarks. Think
+with
+
+Google.
+
+https://www.thinkwithgoogle.com/marketing-strategies/app-and-
+
+mobile/mobile-page-speed-new-industry-benchmarks/
+Guitart, J. (2024). Practicable live container migrations in high performance computing
+clouds: Diskless, iterative, and connection-persistent. Journal of Systems
+Architecture, 152, Article 103157. https://doi.org/10.1016/j.sysarc.2024.103157
+InfluxData.
+
+(2024).
+
+InfluxDB
+
+open
+
+source
+
+documentation.
+
+https://docs.influxdata.com/influxdb/v1/
+Information Technology Intelligence Consulting. (2024). 2024 hourly cost of downtime
+survey results. ITIC. https://itic-corp.com/itic-reports-surveys/2023-itic-reportssurveys-copy/
+Last9. (2025). New Relic vs Datadog: The complete comparison. Last9 Blog.
+https://last9.io/blog/new-relic-vs-datadog/
+Middleware. (2025). Datadog vs New Relic: Choosing the right observability tool for your
+team. Middleware Blog. https://middleware.io/blog/datadog-vs-newrelic/
+Moravcik, M., & Kontsek, P. (2021). Overview of Docker container orchestration tools. In
+Proceedings of the 2020 18th International Conference on Emerging eLearning
+Technologies
+
+and
+
+Applications
+
+(ICETA)
+
+https://doi.org/10.1109/ICETA51985.2020.9379236
+
+90
+
+(pp.
+
+385–388).
+
+IEEE.
+
+Park, J., & Jeong, J. (2023). An autoscaling system based on predicting the demand for
+resources and responding to failure in forecasting. Sensors, 23(23), Article 9436.
+https://doi.org/10.3390/s23239436
+Purahong, B., Sithiyopasakul, J., Sithiyopasakul, P., Lasakul, A., & Benjangkaprasert, C.
+(2023). Automated resource management system based upon container orchestration
+tools comparison. Journal of Advances in Information Technology, 14(3), 501–509.
+https://doi.org/10.12720/jait.14.3.501-509
+Queiroz, R., Cruz, T., Mendes, J., Sousa, P., & Simões, P. (2023). Container-based
+virtualization for real-time industrial systems—A systematic review. ACM
+Computing Surveys, 56(3), Article 59, 1–38. https://doi.org/10.1145/3617591
+Rehman, A. U., Aguiar, R. L., & Barraca, J. P. (2022). Fault-tolerance in the scope of cloud
+computing.
+
+IEEE
+
+Access,
+
+10,
+
+63422–63441.
+
+https://doi.org/10.1109/ACCESS.2022.3182211
+Sharma, R., Kumar, A., & Singh, P. (2025). Event-driven architecture done right: Scaling
+systems
+
+with
+
+quality.
+
+Growin
+
+Engineering
+
+Blog.
+
+https://www.growin.com/blog/event-driven-architecture-scale-systems-2025/
+SigNoz. (2025). New Relic vs DataDog: Features, pricing, and performance compared
+(2025). SigNoz Blog. https://signoz.io/blog/datadog-vs-newrelic/
+Singh, G., & Singh, P. (2022). A container migration technique to minimize the network
+overhead with reusable memory state. International Journal of Computer Networks
+and Applications, 9(3), 350–360. https://doi.org/10.22247/ijcna/2022/212560
+Soussi, W., Gür, G., & Stiller, B. (2024). Democratizing container live migration for
+enhanced future networks: A survey. ACM Computing Surveys, 57(4), Article 97.
+https://doi.org/10.1145/3704436
+Taherizadeh, S., & Stankovski, V. (2019). Dynamic multi-level auto-scaling rules for
+containerized
+
+applications.
+
+The
+
+Computer
+
+https://doi.org/10.1093/comjnl/bxy043
+
+91
+
+Journal,
+
+62(2),
+
+174–197.
+
+Tesser, R. K., & Borin, E. (2023). Containers in HPC: A survey. The Journal of
+Supercomputing, 79(5), 5759-5827. https://doi.org/10.1007/s11227-022-04848-y
+The Kubernetes Authors. (2024). Horizontal Pod Autoscaling. Kubernetes Documentation.
+Retrieved
+
+January
+
+15,
+
+2025,
+
+from
+
+https://kubernetes.io/docs/tasks/run-
+
+application/horizontal-pod-autoscale/
+Tian, Y., Tian, J., & Li, N. (2020). Cloud reliability and efficiency improvement via failure
+risk based proactive actions. Journal of Systems and Software, 163, Article 110524.
+https://doi.org/10.1016/j.jss.2020.110524
+Toka, L., Dobreff, G., Fodor, B., & Sonkoly, B. (2020). Adaptive AI-based auto-scaling for
+Kubernetes. In 2020 20th IEEE/ACM International Symposium on Cluster, Cloud
+and
+
+Internet
+
+Computing
+
+(CCGrid)
+
+(pp.
+
+599–608).
+
+IEEE.
+
+https://doi.org/10.1109/CCGrid49817.2020.00-33
+Tran, M.-N., Vu, X. T., & Kim, Y. (2022). Proactive stateful fault-tolerant system for
+Kubernetes
+
+containerized
+
+services.
+
+IEEE
+
+Access,
+
+10,
+
+102181–102194.
+
+https://doi.org/10.1109/ACCESS.2022.3209257
+Truyen, E., Van Landuyt, D., Preuveneers, D., Lagaisse, B., & Joosen, W. (2019). A
+comprehensive feature comparison study of open-source container orchestration
+frameworks. Applied Sciences, 9(5), 931. https://doi.org/10.3390/app9050931
+Uptrace. (2025). New Relic vs Datadog: Complete platform comparison [2025]. Uptrace
+Blog. https://uptrace.dev/comparisons/newrelic-vs-datadog
+Vayghan, L. A., Saied, M. A., Toeroe, M., & Khendek, F. (2021). A Kubernetes controller
+for managing the availability of elastic microservice based stateful applications.
+Journal
+
+of
+
+Systems
+
+and
+
+Software,
+
+175,
+
+Article
+
+110924.
+
+https://doi.org/10.1016/j.jss.2021.110924
+Velepucha, V., & Flores, P. (2023). A survey on microservices architecture: Principles,
+patterns
+
+and
+
+migration
+
+challenges.
+
+IEEE
+
+https://doi.org/10.1109/ACCESS.2023.3305687
+
+92
+
+Access,
+
+11,
+
+88339–88358.
+
+Virtualization Info. (2025). State of Docker and the container industry in 2025.
+https://virtualization.info/2025/02/23/state-of-docker-and-the-container-industry-in2025/
+Wang, X., Zhao, Y., Lu, S., & Xiao, H. (2025). Practice and observation: Live migration for
+MPI workload. CCF Transactions on High Performance Computing, 7, 447–464.
+https://doi.org/10.1007/s42514-025-00227-0
+Yang, H., & Kim, Y. (2020). Design and implementation of fast fault detection in cloud
+infrastructure
+
+for
+
+containerized
+
+IoT
+
+services.
+
+Sensors,
+
+20(16),
+
+4592.
+
+https://doi.org/10.3390/s20164592
+Zhong, Z., & Buyya, R. (2020). A cost-efficient container orchestration strategy in
+Kubernetes-based cloud computing infrastructures with heterogeneous resources.
+ACM
+
+Transactions
+
+on
+
+Internet
+
+https://doi.org/10.1145/3378447
+
+93
+
+Technology,
+
+20(2),
+
+1–24.
+
+94
+
+

@@ -55,9 +55,17 @@ while true; do
     # Get previous count
     prev_count=0
     if [ -f "$PREV_FILE" ]; then
-      prev_count=$(grep "^$node:" "$PREV_FILE" 2>/dev/null | cut -d':' -f2)
+      prev_count=$(grep "^$node:" "$PREV_FILE" 2>/dev/null | tail -1 | cut -d':' -f2)
       prev_count=${prev_count:-0}
     fi
+
+    # Sanitize values (remove any whitespace/newlines)
+    req_count=$(echo "$req_count" | tr -d '[:space:]')
+    prev_count=$(echo "$prev_count" | tr -d '[:space:]')
+
+    # Ensure they're numeric
+    req_count=${req_count:-0}
+    prev_count=${prev_count:-0}
 
     # Calculate delta
     delta=$((req_count - prev_count))

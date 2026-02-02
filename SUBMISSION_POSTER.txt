@@ -1,0 +1,157 @@
+DESIGN AND IMPLEMENTATION OF A RULEBASED PROACTIVE RECOVERY MECHANISM
+FOR CONTAINERIZED APPLICATIONS USING
+DOCKER SWARM
+AMIR MUZAKKIR BIN MD KAMARU AL-AMIN
+CDCS255 BACHELOR OF COMPUTER
+SCIENCE (HONS.) COMPUTER NETWORKS
+
+DR. NURSHAHRILY IDURA HJ RAMLI
+FACULTY OF SCIENCE COMPUTER AND
+MATHEMATIC
+
+ABSTRACT
+
+PROJECT BACKGROUND
+
+SwarmGuard is a rule-based proactive recovery mechanism for Docker Swarm
+that detects early warning signs of failure and applies context-aware recovery
+strategies before service degradation.
+
+Containerization has revolutionized software deployment since Docker's
+introduction in 2013. Modern orchestration platforms face challenges with
+reactive recovery mechanisms.
+
+Key Features:
+Lightweight threshold-based monitoring (CPU, memory, network I/O)
+7-9ms alert latency with <5% CPU overhead
+Network-aware classification: migration vs auto-scaling
+
+SwarmGuard introduces proactive recovery by:
+Detecting resource stress before failure
+Context-aware scenario classification
+Zero-downtime preventive migration
+Intelligent horizontal auto-scaling
+
+Results: 97.4% MTTR reduction (23.10s → 0.60s) | 80% zero-downtime | 100%
+auto-scale success
+
+OBJECTIVES
+
+PROBLEM STATEMENT
+
+1.Design and develop a lightweight, real-time monitoring system detecting
+early warning signs through CPU, memory, and network I/O tracking.
+2.Implement zero-downtime container migration and intelligent auto-scaling
+using Docker Swarm's native API.
+3.Validate effectiveness through comprehensive performance evaluation
+comparing against reactive baseline.
+
+Current Docker Swarm uses reactive recovery—responding only after complete
+failure occurs, causing guaranteed downtime of 20-30 seconds MTTR.
+Key Issues:
+Health check detection delay: 30-40 seconds
+No proactive failure prediction
+Cannot differentiate node problems vs traffic surges
+HTTP 502/503 errors during recovery window
+
+METHODOLOGY
+The system was validated using prototyping and iterative development models on a 5-node Docker Swarm cluster with physical hardware constraints.
+Decision Logic Flowchart
+
+Decision Logic:
+Monitors CPU, memory, network I/O
+Threshold: CPU > 75% OR Memory
+>80%
+
+System Architecture
+
+Infrastructure:
+5-node Raspberry Pi 4 cluster (8GB
+RAM)
+Docker Swarm 20.10, 100 Mbps
+network
+
+Network < 35%: Scenario 1 (Migration)
+Network >= 65%: Scenario 2 (Autoscale)
+
+InfluxDB + Grafana for observability
+30 test iterations (10 baseline, 10 S1,
+10 S2)
+
+RESULTS
+MTTR Comparison (seconds)
+25
+20
+15
+10
+5
+Baseline
+
+Baseline
+
+SwarmGuard
+
+23.10 sec
+
+0.60 sec
+
+Zero-Downtime Rate
+
+0%
+
+80%
+
+MTTR Improvement
+
+—
+
+97.40%
+
+Auto-Scale Success
+
+N/A
+
+100%
+
+Alert Latency
+
+—
+
+7-9 ms
+
+CPU Overhead
+
+—
+
+<5%
+
+Mean MTTR
+
+Seconds
+
+0
+
+Metric
+
+SwarmGuard
+
+97.4%
+
+80%
+
+100%
+
+MTTR Reduction (23.1s ⟶ 0.6s)
+
+Zero Measurable & Downtime Achieved
+
+Auto-Scale Success with Cooldown Management
+
+CONCLUSION
+SwarmGuard centralizes control and enables proactive recovery through rule-based threshold monitoring and context-aware decision making for Docker Swarm
+environments.
+Experimental validation demonstrates 97.4% MTTR reduction (from 23.1s to 0.6s), with 80% of migrations achieving zero measurable downtime compared to 0% in reactive
+baseline.
+Future work: Real-world deployment validation, machine learning-based prediction enhancement, and multi-cluster federation support.
+
+
