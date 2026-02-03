@@ -70,10 +70,10 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 ssh master "docker service rm web-stress" 2>/dev/null || true
 sleep 5
 
-cd /Users/amirmuz/Documents/CODING-AGENT-DEVELOPMENT/Projects/fyp_everything/swarmguard
+cd /Users/amirmuz/fyp_everything/swarmguard
 ./tests/deploy_web_stress.sh 1 30
 sleep 20
-cd /Users/amirmuz/Documents/CODING-AGENT-DEVELOPMENT/Projects/fyp_everything/fyp-report/03-chapter4-evidence/scripts
+cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 # Get initial location
 INITIAL_NODE=$(ssh master "docker service ps web-stress --filter 'desired-state=running' --format '{{.Node}}' | head -n 1")

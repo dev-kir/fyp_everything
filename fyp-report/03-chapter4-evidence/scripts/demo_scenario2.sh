@@ -76,10 +76,10 @@ done
 ssh master "docker service rm web-stress" 2>/dev/null || true
 sleep 5
 
-cd /Users/amirmuz/Documents/CODING-AGENT-DEVELOPMENT/Projects/fyp_everything/swarmguard
+cd /Users/amirmuz/fyp_everything/swarmguard
 ./tests/deploy_web_stress.sh 1 30
 sleep 20
-cd /Users/amirmuz/Documents/CODING-AGENT-DEVELOPMENT/Projects/fyp_everything/fyp-report/03-chapter4-evidence/scripts
+cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 echo ""
 echo "✅ web-stress deployed with 1 replica"
@@ -129,10 +129,10 @@ LOAD_START=$(date -Iseconds)
 echo "LOAD_STARTED: $LOAD_START" >> "$OUTPUT_DIR/demo_scenario2_replicas_${TIMESTAMP}.log"
 
 # Start the scenario2_ultimate script in background (shorter duration for demo)
-cd /Users/amirmuz/Documents/CODING-AGENT-DEVELOPMENT/Projects/fyp_everything/swarmguard
+cd /Users/amirmuz/fyp_everything/swarmguard
 nohup ./tests/scenario2_ultimate.sh 12 2 8 12 2 60 300 > "$OUTPUT_DIR/demo_scenario2_ultimate_${TIMESTAMP}.log" 2>&1 &
 SCENARIO2_PID=$!
-cd /Users/amirmuz/Documents/CODING-AGENT-DEVELOPMENT/Projects/fyp_everything/fyp-report/03-chapter4-evidence/scripts
+cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 echo "✅ Load test started (PID: $SCENARIO2_PID)"
 echo "   Duration: 5 minutes"
