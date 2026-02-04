@@ -73,19 +73,30 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "STEP 3: Generating HIGH LOAD directly..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "  Method 1: CPU + Memory stress on container"
+echo "  Method 1: CPU + Memory stress on container (GRADUAL 90s ramp)"
 echo "  Method 2: Concurrent network requests through LB"
+echo ""
+echo "  Parameters (tuned for smooth Grafana visualization):"
+echo "    - CPU target: 80%"
+echo "    - Memory target: 12GB"
+echo "    - Ramp time: 90 seconds (gradual increase)"
 echo ""
 echo "  Thresholds for scaling:"
 echo "    - Network > 65 Mbps"
 echo "    - CPU > 75%"
+echo "    - Memory > 80%"
 echo ""
 
-# Start container stress (CPU + Memory)
-echo "Starting CPU + Memory stress on container..."
-curl -s "http://192.168.2.50:8080/stress/combined?cpu=85&memory=20000&network=0&duration=240&ramp=30" > /dev/null &
+# Start container stress (CPU + Memory) - GRADUAL RAMP
+# Parameters tuned for smooth demo visualization:
+#   - cpu=80 (target 80%)
+#   - memory=12000 (12GB - enough to trigger but not instant spike)
+#   - ramp=90 (90 seconds to reach target - smooth curve in Grafana)
+echo "Starting CPU + Memory stress on container (gradual ramp over 90s)..."
+curl -s "http://192.168.2.50:8080/stress/combined?cpu=80&memory=12000&network=0&duration=300&ramp=90" > /dev/null &
 STRESS_PID=$!
 echo "✅ Stress started (PID: $STRESS_PID)"
+echo "   CPU target: 80%, Memory target: 12GB, Ramp: 90 seconds"
 echo ""
 
 # Start concurrent network requests through LB
