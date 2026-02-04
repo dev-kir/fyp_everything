@@ -15,12 +15,12 @@ echo "╚═══════════════════════�
 echo ""
 
 # Check if recovery-manager is running
-REPLICAS=$(docker service ls --filter name=recovery-manager --format "{{.Replicas}}" 2>/dev/null)
+REPLICAS=$(ssh master "docker service ls --filter name=recovery-manager --format '{{.Replicas}}'" 2>/dev/null)
 
 if [ "$REPLICAS" = "0/0" ] || [ -z "$REPLICAS" ]; then
     echo "⚠️  WARNING: recovery-manager is NOT running (0/0 replicas)"
     echo ""
-    echo "To enable SwarmGuard, run:"
+    echo "To enable SwarmGuard, run on master:"
     echo "  docker service scale recovery-manager=1"
     echo "  docker service scale monitoring-agent-master=1"
     echo "  docker service scale monitoring-agent-worker1=1"
@@ -37,4 +37,4 @@ echo "SwarmGuard is ENABLED. Streaming logs..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-docker service logs -f recovery-manager --tail 30
+ssh master "docker service logs -f recovery-manager --tail 30"

@@ -17,7 +17,7 @@ echo "━━━━━━━━━━━━━━━━━━━━"
 
 while true; do
   ts=$(date '+%H:%M:%S')
-  replicas=$(docker service ls --filter name=web-stress --format "{{.Replicas}}" 2>/dev/null | head -n 1)
+  replicas=$(ssh master "docker service ls --filter name=web-stress --format '{{.Replicas}}'" 2>/dev/null | head -n 1)
 
   if [ -z "$replicas" ]; then
     echo "$ts  ❌ Service not found"

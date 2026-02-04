@@ -13,27 +13,20 @@ echo "║  Press Ctrl+C to stop                                                �
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
 
-# Check if monitor script exists
-if [ -f "/Users/amirmuz/fyp_everything/swarmguard/tests/monitor_lb_distribution.sh" ]; then
-    cd /Users/amirmuz/fyp_everything/swarmguard
-    ./tests/monitor_lb_distribution.sh
-else
-    echo "Fallback: Using direct metrics query..."
-    echo ""
-    echo "TIME      BACKENDS  DISTRIBUTION"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "TIME      BACKENDS  STATUS"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-    while true; do
-      ts=$(date '+%H:%M:%S')
-      metrics=$(curl -s http://192.168.2.50:8081/metrics 2>/dev/null)
+while true; do
+  ts=$(date '+%H:%M:%S')
+  metrics=$(curl -s http://192.168.2.50:8081/metrics 2>/dev/null)
 
-      if [ -z "$metrics" ]; then
-        echo "$ts  ❌ LB not responding"
-      else
-        backends=$(echo "$metrics" | jq -r '.active_backends // "N/A"' 2>/dev/null)
-        echo "$ts  $backends backends active"
-      fi
+  if [ -z "$metrics" ]; then
+    echo "$ts  ❌ LB not responding"
+  else
+    backends=$(echo "$metrics" | jq -r '.active_backends // "N/A"' 2>/dev/null || echo "N/A")
+    requests=$(echo "$metrics" | jq -r '.total_requests // "N/A"' 2>/dev/null || echo "N/A")
+    echo "$ts  Backends: $backends | Requests: $requests"
+  fi
 
-      sleep 3
-    done
-fi
+  sleep 3
+done

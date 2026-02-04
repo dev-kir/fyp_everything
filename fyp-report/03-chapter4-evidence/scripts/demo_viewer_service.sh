@@ -12,11 +12,19 @@ echo "║  Press Ctrl+C to stop                                                �
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
 
-watch -n 1 --color 'echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "SERVICE: web-stress"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-docker service ps web-stress --format "table {{.Name}}\t{{.Node}}\t{{.DesiredState}}\t{{.CurrentState}}\t{{.Error}}" | head -n 10
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "REPLICAS:"
-docker service ls --filter name=web-stress --format "table {{.Name}}\t{{.Replicas}}\t{{.Image}}"'
+while true; do
+    clear
+    echo "╔══════════════════════════════════════════════════════════════════════╗"
+    echo "║                    SERVICE STATUS VIEWER                             ║"
+    echo "╚══════════════════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "SERVICE: web-stress                          $(date '+%H:%M:%S')"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    ssh master "docker service ps web-stress --format 'table {{.Name}}\t{{.Node}}\t{{.DesiredState}}\t{{.CurrentState}}\t{{.Error}}'" 2>/dev/null | head -n 10
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "REPLICAS:"
+    ssh master "docker service ls --filter name=web-stress --format 'table {{.Name}}\t{{.Replicas}}\t{{.Image}}'" 2>/dev/null
+    sleep 1
+done
