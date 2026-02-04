@@ -129,12 +129,17 @@ LOAD_START=$(date -Iseconds)
 echo "LOAD_STARTED: $LOAD_START" >> "$OUTPUT_DIR/demo_scenario2_replicas_${TIMESTAMP}.log"
 
 # Start the scenario2_ultimate script in background (shorter duration for demo)
+# Use 'yes' to auto-answer any prompts, and higher load parameters
+# Parameters: USERS_PER_ALPINE CPU% MEM_MB NET_MBPS STAGGER RAMP HOLD
+# Using higher values to actually trigger scaling: 10 users × 5% CPU = 50% per alpine, × 5 alpines = 250% total
 cd /Users/amirmuz/fyp_everything/swarmguard
-nohup ./tests/scenario2_ultimate.sh 12 2 8 12 2 60 300 > "$OUTPUT_DIR/demo_scenario2_ultimate_${TIMESTAMP}.log" 2>&1 &
+yes | nohup ./tests/scenario2_ultimate.sh 10 5 50 10 2 30 300 > "$OUTPUT_DIR/demo_scenario2_ultimate_${TIMESTAMP}.log" 2>&1 &
 SCENARIO2_PID=$!
 cd /Users/amirmuz/fyp_everything/fyp-report/03-chapter4-evidence/scripts
 
 echo "✅ Load test started (PID: $SCENARIO2_PID)"
+echo "   Parameters: 10 users/alpine × 5 alpines = 50 users"
+echo "   Expected: ~250% CPU, ~2500MB Memory, ~500Mbps Network"
 echo "   Duration: 5 minutes"
 echo ""
 

@@ -13,8 +13,8 @@ echo "║  Press Ctrl+C to stop                                                �
 echo "╚══════════════════════════════════════════════════════════════════════╝"
 echo ""
 
-echo "TIME      BACKENDS  STATUS"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "TIME      REPLICAS  REQUESTS   DISTRIBUTION"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 while true; do
   ts=$(date '+%H:%M:%S')
@@ -23,9 +23,11 @@ while true; do
   if [ -z "$metrics" ]; then
     echo "$ts  ❌ LB not responding"
   else
-    backends=$(echo "$metrics" | jq -r '.active_backends // "N/A"' 2>/dev/null || echo "N/A")
+    replicas=$(echo "$metrics" | jq -r '.healthy_replicas // "N/A"' 2>/dev/null || echo "N/A")
     requests=$(echo "$metrics" | jq -r '.total_requests // "N/A"' 2>/dev/null || echo "N/A")
-    echo "$ts  Backends: $backends | Requests: $requests"
+    # Get per-replica request counts
+    distribution=$(echo "$metrics" | jq -r '.replica_stats | to_entries | map("\(.value.node):\(.value.request_count)") | join(" | ")' 2>/dev/null || echo "N/A")
+    echo "$ts  $replicas healthy | $requests total | $distribution"
   fi
 
   sleep 3
