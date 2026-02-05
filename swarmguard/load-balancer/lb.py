@@ -226,7 +226,7 @@ class LoadBalancer:
             tasks = service.tasks(filters={'desired-state': 'running'})
 
             new_replicas = {}
-            async with ClientSession(timeout=ClientTimeout(total=2)) as session:
+            async with ClientSession(timeout=ClientTimeout(total=5)) as session:
                 for task in tasks:
                     task_id = task['ID'][:12]
                     node_id = task['NodeID']
